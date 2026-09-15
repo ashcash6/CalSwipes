@@ -1,0 +1,8 @@
+Config/Local.xcconfig
+*.xcodeproj/
+DerivedData/
+.DS_Store
+.model-venv/
+Tests/Models/*.mlpackage/
+Tools/__pycache__/
+work/

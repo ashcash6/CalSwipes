@@ -1,0 +1,90 @@
+{
+  "repository": "mlboydaisuke/MobileSAM-CoreML",
+  "revision": "1a87f0e568226d4bb3f32c0b9d5cdda48408e4c4",
+  "upstream_repository": "ChaoningZhang/MobileSAM",
+  "upstream_revision": "f706ad9c4eb7f219c00d9050e46328518ffb65d2",
+  "upstream_checkpoint_sha256": "6dbb90523a35330fedd7f1d3dfc66f995213d81b29a5ca8108dbcdd4e37d6c2f",
+  "files": {
+    "mobile_sam_decoder.mlpackage/Data/com.apple.CoreML/model.mlmodel": {
+      "bytes": 92863,
+      "sha256": "72b46adb6ac573f6de4d663bd11eb854ec0c2313fb5b84c25dce098dd78e06c0"
+    },
+    "mobile_sam_decoder.mlpackage/Data/com.apple.CoreML/weights/weight.bin": {
+      "bytes": 10221888,
+      "sha256": "743313ed88a3566f93fcf91491daf475aff2df6f4b2d99d2a7a39c66e9dd3b95"
+    },
+    "mobile_sam_decoder.mlpackage/Manifest.json": {
+      "bytes": 617,
+      "sha256": "54bdceed0c002c10c6446d4bd07dcbd845ce2c146e07092e3fa296a3e682953c"
+    },
+    "mobile_sam_encoder.mlpackage/Data/com.apple.CoreML/model.mlmodel": {
+      "bytes": 190594,
+      "sha256": "6982455427573907ee1f3dabc72ded4bbc39807245a5c5161ce9c6b785b0de25"
+    },
+    "mobile_sam_encoder.mlpackage/Data/com.apple.CoreML/weights/weight.bin": {
+      "bytes": 13916608,
+      "sha256": "7ed1fb66938eaa1830e0c255b8abe3b9d443ea6bc424135996b7d6688b146ee2"
+    },
+    "mobile_sam_encoder.mlpackage/Manifest.json": {
+      "bytes": 617,
+      "sha256": "8fb691f12d0a3e3dba5d4cf1c626ba85d29c770abd51958a5eead19739e8529b"
+    },
+    "mobile_sam_prompt_encoder_weights.json": {
+      "bytes": 38742,
+      "sha256": "b1fe402293da64e7b94c34958d1288cff0857345e0b3f2f816f90b23c07834bb"
+    }
+  },
+  "contracts": {
+    "mobile_sam_encoder.mlpackage": {
+      "input": {
+        "image": [
+          1,
+          3,
+          1024,
+          1024
+        ]
+      },
+      "output": {
+        "image_embeddings": [
+          1,
+          256,
+          64,
+          64
+        ]
+      }
+    },
+    "mobile_sam_decoder.mlpackage": {
+      "input": {
+        "image_embeddings": [
+          1,
+          256,
+          64,
+          64
+        ],
+        "sparse_embeddings": [
+          1,
+          1,
+          256
+        ],
+        "dense_embeddings": [
+          1,
+          256,
+          64,
+          64
+        ]
+      },
+      "output": {
+        "masks": [
+          1,
+          3,
+          256,
+          256
+        ],
+        "iou_predictions": [
+          1,
+          3
+        ]
+      }
+    }
+  }
+}

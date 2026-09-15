@@ -1,0 +1,18 @@
+Berkeley Plate segmentation third-party notices
+
+MobileSAM: Chaoning Zhang and contributors.
+Source: https://github.com/ChaoningZhang/MobileSAM
+License: Apache License 2.0 (MobileSAM-LICENSE.txt).
+SAM components: Copyright (c) Meta Platforms, Inc. and affiliates.
+TinyViT architecture: Copyright (c) 2022 Microsoft.
+
+Core ML conversion packages: SAMKit / Daisuke Majima (john-rocky).
+Source: https://huggingface.co/mlboydaisuke/MobileSAM-CoreML
+Reference: https://github.com/john-rocky/SamKit
+License: Apache License 2.0 (SAMKit-LICENSE.txt).
+
+Included model files are unmodified from the pinned conversion repository.
+Berkeley Plate adds Swift preprocessing, prompt encoding, mask decoding and
+guided UI, plus an independent Python export recipe. No endorsement by the
+upstream authors, Microsoft, Meta or UC Berkeley is implied.
+Exact model revisions and hashes are recorded in Tools/model-lock.json in source.

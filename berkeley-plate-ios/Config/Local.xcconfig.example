@@ -1,0 +1,4 @@
+APP_BUNDLE_ID = edu.yourorganization.BerkeleyPlate
+DEVELOPMENT_TEAM = YOURTEAMID
+// $() prevents the URL's double slash from becoming an xcconfig comment.
+API_BASE_URL = https:/$()/your-api.example.com

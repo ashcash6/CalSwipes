@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "hall": "foothill",
+  "date": "2026-09-14",
+  "meal": "breakfast",
+  "status": "published",
+  "source_meal_names": [
+    "Fall - Breakfast"
+  ],
+  "items": [
+    {
+      "id": "1063",
+      "name": "Basmati Rice",
+      "categories": [
+        "Chef's Table"
+      ],
+      "serving": {
+        "quantity": 2.96,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 83.91458845,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 90.78,
+        "protein_g": 1.81,
+        "carbs_g": 21.17,
+        "fat_g": 0.0
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1282",
+      "name": "Sweet Potato Kale Hash",
+      "categories": [
+        "Chef's Table"
+      ],
+      "serving": {
+        "quantity": 4.09,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 115.94954958125,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 132.63,
+        "protein_g": 2.25,
+        "carbs_g": 19.94,
+        "fat_g": 5.12
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1517",
+      "name": "Low Fat Vanilla Greek Yogurt",
+      "categories": [
+        "Yogurt Bar"
+      ],
+      "serving": {
+        "quantity": 6.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 170.09713875,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 90.1,
+        "protein_g": 7.01,
+        "carbs_g": 11.01,
+        "fat_g": 2.5
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1542",
+      "name": "Assorted Mini Filled Croissant",
+      "categories": [
+        "Pastry"
+      ],
+      "serving": {
+        "quantity": 1.5,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 42.5242846875,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 173.18,
+        "protein_g": 4.25,
+        "carbs_g": 19.09,
+        "fat_g": 8.55
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1637",
+      "name": "Sunflower Butter",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 1.1,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 31.1844754375,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 192.36,
+        "protein_g": 5.39,
+        "carbs_g": 7.27,
+        "fat_g": 17.21
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1680",
+      "name": "Vegan Butter",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 1.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 28.349523125,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 202.63,
+        "protein_g": 0.0,
+        "carbs_g": 0.0,
+        "fat_g": 22.27
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1682",
+      "name": "Capers",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 0.25,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 7.08738078125,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 0.16,
+        "protein_g": 0.0,
+        "carbs_g": 0.0,
+        "fat_g": 0.0
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1692",
+      "name": "Whipped Cream Cheese",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 2.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 56.69904625,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 182.37,
+        "protein_g": 4.05,
+        "carbs_g": 4.05,
+        "fat_g": 18.22
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "1748",
+      "name": "Sliced Red Onion",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 1.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 28.349523125,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 11.35,
+        "protein_g": 0.31,
+        "carbs_g": 2.65,
+        "fat_g": 0.03
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "190",
+      "name": "Chive Cream Cheese",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 2.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 56.69904625,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 169.14,
+        "protein_g": 3.87,
+        "carbs_g": 3.92,
+        "fat_g": 16.8
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "3045",
+      "name": "Sliced Tomato",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 0.95,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 26.93204696875,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 4.76,
+        "protein_g": 0.24,
+        "carbs_g": 1.05,
+        "fat_g": 0.05
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "3110",
+      "name": "Strawberry Jelly",
+      "categories": [
+        "Bagel Bar"
+      ],
+      "serving": {
+        "quantity": 0.7,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 19.8446661875,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 39.72,
+        "protein_g": 0.0,
+        "carbs_g": 9.92,
+        "fat_g": 0.0
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "502",
+      "name": "Vegan Breakfast \"Sausage\" Patty",
+      "categories": [
+        "Chef's Table"
+      ],
+      "serving": {
+        "quantity": 1.74,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 49.3281702375,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 144.43,
+        "protein_g": 9.21,
+        "carbs_g": 1.03,
+        "fat_g": 11.46
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "507",
+      "name": "Turkey Sausage Link",
+      "categories": [
+        "Chef's Table"
+      ],
+      "serving": {
+        "quantity": 2.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 56.69904625,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 111.45,
+        "protein_g": 9.11,
+        "carbs_g": 1.01,
+        "fat_g": 8.1
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "556",
+      "name": "Scrambled Eggs",
+      "categories": [
+        "Chef's Table"
+      ],
+      "serving": {
+        "quantity": 3.93,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 111.41362588125,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 184.98,
+        "protein_g": 13.92,
+        "carbs_g": 2.32,
+        "fat_g": 12.88
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "737",
+      "name": "Oatmeal",
+      "categories": [
+        "Cereal/ Hot Grain"
+      ],
+      "serving": {
+        "quantity": 5.96,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 168.963157825,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 93.37,
+        "protein_g": 2.94,
+        "carbs_g": 16.2,
+        "fat_g": 1.47
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    },
+    {
+      "id": "964",
+      "name": "Fried Potato Cubes",
+      "categories": [
+        "Chef's Table"
+      ],
+      "serving": {
+        "quantity": 3.0,
+        "unit": "oz",
+        "description": "1 SV",
+        "weight_g": 85.048569375,
+        "weight_basis": "source_mass_unit"
+      },
+      "macros": {
+        "calories_kcal": 136.28,
+        "protein_g": 1.81,
+        "carbs_g": 18.1,
+        "fat_g": 6.07
+      },
+      "nutrition_status": "published",
+      "reference_image_url": null,
+      "warnings": []
+    }
+  ],
+  "revision": "fbaeb34baf9c07abb72bf14a60d5e845a7c0d5eee283f751af94be3881dcf28f",
+  "fetched_at": "2026-09-14T03:27:36.205234-07:00",
+  "expires_at": "2026-09-15T15:27:36.205234-07:00",
+  "source_url": "https://dining.berkeley.edu/wp-content/uploads/menus-exportimport/Foothill_20260914.xml",
+  "source_sha256": "9a1608252933fa41695b3a5ed8db952bc08be91ca1d4f6951c1638e8d8a51a22"
+}

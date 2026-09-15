@@ -1,0 +1,63 @@
+name: BerkeleyPlate
+options:
+  deploymentTarget:
+    iOS: '17.0'
+  xcodeVersion: '16.0'
+  fileTypes:
+    mlpackage:
+      file: true
+      buildPhase: sources
+configFiles:
+  Debug: Config/App.xcconfig
+  Release: Config/App.xcconfig
+settings:
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) DEBUG
+    Release:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited)
+  base:
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1'
+    CODE_SIGN_STYLE: Automatic
+targets:
+  BerkeleyPlate:
+    type: application
+    platform: iOS
+    sources:
+      - BerkeleyPlate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: Berkeley Plate
+        CFBundleShortVersionString: '0.4.0'
+        CFBundleVersion: '4'
+        APIBaseURL: $(API_BASE_URL)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSCameraUsageDescription: Photograph your meal to estimate its portions and nutrition on this iPhone.
+    entitlements:
+      path: Config/BerkeleyPlate.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
+  BerkeleyPlateTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: BerkeleyPlate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  BerkeleyPlate:
+    build:
+      targets:
+        BerkeleyPlate: all
+    test:
+      targets: [BerkeleyPlateTests]
