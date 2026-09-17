@@ -1,4 +1,8 @@
 // Copy Local.xcconfig.example to Local.xcconfig for your real values.
 APP_BUNDLE_ID = edu.example.BerkeleyPlate
-API_BASE_URL = https:/$()/api.example.invalid
+// Replace with your GitHub Pages or Cloudflare Pages URL after deploying the backend.
+// Example (GitHub Pages): https://$()/your-username.github.io/berkeley-dining-backend
+// Example (Cloudflare Pages): https://$()/your-project.pages.dev
+API_BASE_URL = https:/$()/pending.configuration.invalid
+
 #include? "Local.xcconfig"

@@ -37,7 +37,7 @@ final class MenuRepositoryTests: XCTestCase {
         let repository = MenuRepository(api: api, directory: root)
         let key = MenuKey(hall: .foothill, date: "2026-09-14", meal: .breakfast)
         StubProtocol.handler = { request in
-            XCTAssertEqual(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "foothill")
+            XCTAssertEqual(request.url?.path, "/menus/foothill/2026-09-14/breakfast.json")
             return (200, data, ["ETag":"\"revision\""])
         }
         let online = try await repository.load(key, at: fixture.fetchedAt)

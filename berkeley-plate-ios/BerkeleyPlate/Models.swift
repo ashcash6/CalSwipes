@@ -97,32 +97,6 @@ struct MenuEnvelope: Codable {
     }
 }
 
-struct AuthChallenge: Decodable {
-    let challengeId: String
-    let nonce: String
-    let expiresAt: Date
-}
-
-struct Account: Codable {
-    let id: String
-    let createdAt: Date
-}
-
-struct AuthResult: Decodable {
-    let accessToken: String
-    let tokenType: String
-    let expiresAt: Date
-    let user: Account
-}
-
-struct SavedSession: Codable {
-    let accessToken: String
-    let expiresAt: Date
-    let account: Account
-    let appleUserId: String
-    let apiOrigin: String
-}
-
 enum JSONCoding {
     static func decoder() -> JSONDecoder {
         let decoder = JSONDecoder()

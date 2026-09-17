@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 
 enum PlateStyle {
@@ -13,79 +12,10 @@ enum PlateStyle {
     static let gold = Color(red: 0.88, green: 0.66, blue: 0.25)
 }
 
-struct WelcomeView: View {
-    @ObservedObject var store: AppStore
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                Text("BERKELEY PLATE")
-                    .font(.caption.weight(.bold)).tracking(3).foregroundStyle(PlateStyle.green)
-                ZStack {
-                    Circle().fill(PlateStyle.green.opacity(0.07)).frame(width: 224, height: 224)
-                    Circle().stroke(PlateStyle.green.opacity(0.18), lineWidth: 2).frame(width: 174, height: 174)
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 100)).foregroundStyle(PlateStyle.green)
-                    Image(systemName: "leaf.fill").font(.system(size: 36)).foregroundStyle(PlateStyle.gold)
-                        .offset(x: 75, y: -63).rotationEffect(.degrees(20))
-                }
-                .frame(maxWidth: .infinity).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Know what’s\non your plate.")
-                        .font(.system(.largeTitle, design: .serif, weight: .semibold))
-                    Text("Start with today’s dining-hall menu and Berkeley’s published nutrition information.")
-                        .font(.body).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("Four dining halls, one place", systemImage: "building.2")
-                    Label("Per-serving calories and macros", systemImage: "chart.bar.xaxis")
-                    Label("Downloaded menus available offline", systemImage: "wifi.slash")
-                }
-                .font(.subheadline).foregroundStyle(PlateStyle.green)
-                VStack(spacing: 12) {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let valid = (store.challenge?.expiresAt ?? .distantPast) > context.date
-                        SignInWithAppleButton(.continue) { request in
-                            store.configure(request)
-                        } onCompletion: { result in
-                            Task {
-                                await store.complete(result)
-                                if store.session == nil { await store.prepareSignIn() }
-                            }
-                        }
-                        .signInWithAppleButtonStyle(.black)
-                        .frame(height: 52).clipShape(RoundedRectangle(cornerRadius: 12))
-                        .disabled(!valid || store.isSigningIn)
-                        .opacity(valid ? 1 : 0.5)
-                    }
-                    if store.isSigningIn { ProgressView("Signing in securely…") }
-                    if let error = store.authError {
-                        Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
-                    }
-                    if store.challenge == nil && !store.isSigningIn {
-                        Button("Prepare sign-in") { Task { await store.prepareSignIn() } }
-                    }
-                    Text("Your Apple account identifier is used to create an account. Your email and name are not requested.")
-                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                }
-                Text("An independent app. Not affiliated with UC Berkeley. Nutrition values are estimates, not medical advice.")
-                    .font(.caption2).foregroundStyle(.secondary)
-            }
-            .padding(28)
-        }
-        .background(PlateStyle.cream)
-        .task {
-            while !Task.isCancelled {
-                await store.prepareSignIn()
-                try? await Task.sleep(for: .seconds(30))
-            }
-        }
-    }
-}
-
 struct MenuScreen: View {
     @ObservedObject var store: AppStore
     let simulator: Bool
-    @State private var accountPresented = false
+    @State private var aboutPresented = false
     @State private var search = ""
     @State private var scanRequest: ScanRequest?
 
@@ -136,8 +66,8 @@ struct MenuScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { accountPresented = true } label: { Image(systemName: "person.crop.circle") }
-                        .accessibilityLabel("Account")
+                    Button { aboutPresented = true } label: { Image(systemName: "info.circle") }
+                        .accessibilityLabel("About")
                 }
             }
             .searchable(text: $search, prompt: "Find a menu item")
@@ -159,7 +89,7 @@ struct MenuScreen: View {
                     .padding().background(.regularMaterial)
                 }
             }
-            .sheet(isPresented: $accountPresented) { AccountView(store: store) }
+            .sheet(isPresented: $aboutPresented) { AboutView() }
             .fullScreenCover(item: $scanRequest) { request in ScanScreen(request: request) }
         }
     }
@@ -293,42 +223,24 @@ struct MenuItemCard: View {
     }
 }
 
-struct AccountView: View {
-    @ObservedObject var store: AppStore
+struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var signingOut = false
     var body: some View {
         NavigationStack {
             List {
-                Section("Account") {
-                    Label("Signed in with Apple", systemImage: "checkmark.shield")
-                    if let session = store.session {
-                        Text("Session expires \(session.expiresAt.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Button("Sign out", role: .destructive) {
-                        Task {
-                            signingOut = true
-                            await store.signOut()
-                            signingOut = false
-                            if store.session == nil { dismiss() }
-                        }
-                    }
-                    .disabled(signingOut)
-                    if signingOut { ProgressView() }
-                    if let error = store.authError { Text(error).font(.caption).foregroundStyle(.red) }
-                }
                 Section("Your data") {
-                    Text("This build stores your Apple account identifier on the server and a session token in this iPhone’s Keychain. Downloaded public menus are cached on this device. Captured photos stay in memory on this iPhone and are discarded when you close the camera flow. Photos are not uploaded or saved to Photos.")
-                    Text("Item preselections stay in memory and are cleared when you switch menus or sign out.")
+                    Text("Downloaded public menus are cached on this device. Captured photos stay in memory on this iPhone and are discarded when you close the camera flow. Photos are not uploaded or saved to Photos.")
+                    Text("Item preselections stay in memory and are cleared when you switch menus.")
                 }
                 Section("About this build") {
-                    Text("Menus, sign-in and photo capture")
-                    Text("Nutrition figures are Berkeley’s published per-serving reference values. Automated food analysis, portion estimation, meal logging and HealthKit are planned for later phases.")
+                    Text("Menus and photo capture")
+                    Text("Nutrition figures are Berkeley's published per-serving reference values. Automated food analysis, portion estimation, meal logging and HealthKit are planned for later phases.")
                         .font(.footnote).foregroundStyle(.secondary)
+                    Text("An independent app. Not affiliated with UC Berkeley. Nutrition values are estimates, not medical advice.")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Account")
+            .navigationTitle("About")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }

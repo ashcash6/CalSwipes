@@ -46,13 +46,4 @@ final class MenuTests: XCTestCase {
         XCTAssertNil(item.serving.weightG)
     }
 
-    func testSessionVaultCodingDoesNotDropAppleID() throws {
-        let saved = SavedSession(accessToken: "test", expiresAt: Date(timeIntervalSince1970: 1900000000),
-            account: Account(id: "account", createdAt: Date(timeIntervalSince1970: 1800000000)),
-            appleUserId: "apple-user", apiOrigin: "https://api.example.com")
-        let decoded = try JSONCoding.decoder().decode(SavedSession.self, from: JSONCoding.encoder().encode(saved))
-        XCTAssertEqual(decoded.appleUserId, saved.appleUserId)
-        XCTAssertEqual(decoded.expiresAt, saved.expiresAt)
-        XCTAssertEqual(decoded.apiOrigin, saved.apiOrigin)
-    }
 }

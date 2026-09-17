@@ -39,11 +39,10 @@ actor MenuRepository {
     func load(_ key: MenuKey, at instant: Date = Date()) async throws -> MenuLoad {
         let cached = read(key)
         do {
-            let result = try await api.send(path: "v1/menu", query: [
-                URLQueryItem(name: "hall", value: key.hall.rawValue),
-                URLQueryItem(name: "date", value: key.date),
-                URLQueryItem(name: "meal", value: key.meal.rawValue)
-            ], etag: cached?.etag)
+            let result = try await api.send(
+                path: "menus/\(key.hall.rawValue)/\(key.date)/\(key.meal.rawValue).json",
+                etag: cached?.etag
+            )
             try Task.checkCancellation()
             if result.response.statusCode == 304 {
                 guard let cached, cached.menu.isFresh(at: instant) else { throw APIError.expiredMenu }

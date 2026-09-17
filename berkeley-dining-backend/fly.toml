@@ -1,0 +1,39 @@
+app = 'berkeley-dining-api'
+primary_region = 'sjc'
+
+[build]
+
+# Run Alembic migrations atomically before each new version goes live.
+[deploy]
+  release_command = 'alembic upgrade head'
+
+[env]
+  STALE_HOURS = '36'
+  SCRAPER_USER_AGENT = 'BerkeleyPlate/0.1 (public menu research)'
+
+# Two process groups share the same image; each gets its own machine.
+# DATABASE_URL, SESSION_SECRET, and APPLE_BUNDLE_ID are set via `fly secrets set`.
+[processes]
+  api    = 'uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000'
+  worker = 'python -m app.worker'
+
+# Only the api process receives external traffic.
+[http_service]
+  internal_port      = 8000
+  force_https        = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes          = ['api']
+
+  [[http_service.checks]]
+    grace_period = '15s'
+    interval     = '30s'
+    method       = 'GET'
+    timeout      = '10s'
+    path         = '/health/ready'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus     = 1
+  memory   = '256mb'
