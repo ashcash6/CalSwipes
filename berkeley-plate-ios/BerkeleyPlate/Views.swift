@@ -73,6 +73,9 @@ struct MenuScreen: View {
             .searchable(text: $search, prompt: "Find a menu item")
             .refreshable { await store.loadMenu() }
             .task(id: store.key) {
+                // Skip initial render — foreground() sets mealValidated once the
+                // correct meal is confirmed, and calls loadMenu() itself.
+                guard store.mealValidated else { return }
                 search = ""
                 await store.loadMenu()
             }
@@ -99,7 +102,10 @@ struct MenuScreen: View {
             HStack {
                 Label("Dining hall", systemImage: "building.2").font(.subheadline.weight(.medium))
                 Spacer()
-                Picker("Dining hall", selection: $store.selectedHall) {
+                Picker("Dining hall", selection: Binding(
+                    get: { store.selectedHall },
+                    set: { hall in Task { await store.selectHall(hall) } }
+                )) {
                     ForEach(Hall.allCases) { hall in Text(hall.title).tag(hall) }
                 }
                 .pickerStyle(.menu)

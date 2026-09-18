@@ -61,6 +61,32 @@ enum BerkeleyClock {
         if hour >= 11 && (hour < 16 || (hour == 16 && minute < 30)) { return .lunch }
         return .dinner
     }
+
+    /// Returns the best meal from `available` for the current time.
+    /// Prefers `natural` if it's available; otherwise picks the available meal
+    /// whose representative time is closest to the current time.
+    static func closestMeal(to natural: Meal, among available: [Meal], at instant: Date = Date()) -> Meal {
+        guard !available.isEmpty else { return natural }
+        if available.contains(natural) { return natural }
+        let current = calendar.component(.hour, from: instant) * 60
+                    + calendar.component(.minute, from: instant)
+        return available.min(by: { abs(mealMinutes($0) - current) < abs(mealMinutes($1) - current) }) ?? natural
+    }
+
+    private static func mealMinutes(_ meal: Meal) -> Int {
+        switch meal {
+        case .breakfast: return 8 * 60 + 30
+        case .brunch:    return 10 * 60 + 30
+        case .lunch:     return 12 * 60 + 30
+        case .allDay:    return 12 * 60
+        case .dinner:    return 18 * 60 + 30
+        case .lateNight: return 22 * 60
+        }
+    }
+}
+
+struct AvailableMealsResponse: Decodable {
+    let available: [Meal]
 }
 
 struct Macros: Codable, Equatable {

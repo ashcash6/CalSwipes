@@ -19,7 +19,7 @@ struct BerkeleyPlateApp: App {
                 }
             }
             .tint(PlateStyle.green)
-            .task { await store.loadMenu() }
+            .task { await store.foreground() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active, support.canOpenShell {
                     Task { await store.foreground() }

@@ -12,6 +12,10 @@ final class AppStore: ObservableObject {
     @Published var isOffline = false
     @Published var cacheSaved = true
     @Published var selectedItemIds = Set<String>()
+    /// True once `foreground()` has run its available-meals check and set
+    /// the correct meal. Used to gate MenuScreen's task so the initial render
+    /// never loads with a meal that might not be published for this hall.
+    @Published private(set) var mealValidated = false
     private let api: APIClient
     private let menus: MenuRepository
     private var activeKey: MenuKey?
@@ -28,8 +32,33 @@ final class AppStore: ObservableObject {
 
     func foreground() async {
         serviceDate = BerkeleyClock.serviceDate()
-        selectedMeal = BerkeleyClock.suggestedMeal()
+        let natural = BerkeleyClock.suggestedMeal()
+        let available = (try? await fetchAvailableMeals(hall: selectedHall, date: serviceDate)) ?? []
+        selectedMeal = BerkeleyClock.closestMeal(to: natural, among: available)
+        mealValidated = true
         await loadMenu()
+    }
+
+    /// Changes the hall and recalculates the best meal for the new hall's
+    /// published periods. Both properties are set before returning so
+    /// the key change fires only once, avoiding a double menu load.
+    func selectHall(_ hall: Hall) async {
+        guard hall != selectedHall else { return }
+        let natural = BerkeleyClock.suggestedMeal()
+        let available = (try? await fetchAvailableMeals(hall: hall, date: serviceDate)) ?? []
+        let best = BerkeleyClock.closestMeal(to: natural, among: available)
+        // Assign both synchronously so the computed key changes in one SwiftUI cycle.
+        selectedMeal = best
+        selectedHall = hall
+    }
+
+    private func fetchAvailableMeals(hall: Hall, date: String) async throws -> [Meal] {
+        let result = try await api.send(
+            path: "v1/available-meals",
+            query: [URLQueryItem(name: "hall", value: hall.rawValue),
+                    URLQueryItem(name: "date", value: date)]
+        )
+        return try JSONCoding.decoder().decode(AvailableMealsResponse.self, from: result.data).available
     }
 
     func loadMenu() async {

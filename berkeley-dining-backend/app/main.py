@@ -53,6 +53,21 @@ def create_app(settings=None, engine=None, apple_verifier=None):
             connection.execute(text("SELECT 1 FROM menu_snapshots LIMIT 1"))
         return {"status": "ok"}
 
+    @app.get("/v1/available-meals")
+    def available_meals(hall: Hall, date: date = Query()):
+        with Session(engine) as session:
+            meals = session.execute(
+                select(MenuSnapshot.meal).where(
+                    MenuSnapshot.hall == hall.value,
+                    MenuSnapshot.service_date == date,
+                    MenuSnapshot.content["status"].as_string() == "published",
+                )
+            ).scalars().all()
+        return JSONResponse(
+            {"hall": hall.value, "date": str(date), "available": sorted(meals)},
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
     @app.get("/menu", response_model=MenuResponse)
     @app.get("/v1/menu", response_model=MenuResponse)
     def menu(request: Request, hall: Hall, date: date = Query(), meal: Meal = Query()):
