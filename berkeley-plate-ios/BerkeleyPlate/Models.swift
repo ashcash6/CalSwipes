@@ -38,8 +38,9 @@ enum BerkeleyClock {
     }
     static func suggestedMeal(_ instant: Date = Date()) -> Meal {
         let hour = calendar.component(.hour, from: instant)
-        if hour < 10 { return .breakfast }
-        if hour < 16 { return .lunch }
+        let minute = calendar.component(.minute, from: instant)
+        if hour >= 7 && hour < 11 { return .breakfast }
+        if hour >= 11 && (hour < 16 || (hour == 16 && minute < 30)) { return .lunch }
         return .dinner
     }
 }

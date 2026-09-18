@@ -28,6 +28,7 @@ final class AppStore: ObservableObject {
 
     func foreground() async {
         serviceDate = BerkeleyClock.serviceDate()
+        selectedMeal = BerkeleyClock.suggestedMeal()
         await loadMenu()
     }
 

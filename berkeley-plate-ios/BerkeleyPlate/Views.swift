@@ -108,10 +108,8 @@ struct MenuScreen: View {
             HStack {
                 Label("Meal", systemImage: "sun.max").font(.subheadline.weight(.medium))
                 Spacer()
-                Picker("Meal", selection: $store.selectedMeal) {
-                    ForEach(Meal.allCases) { meal in Text(meal.title).tag(meal) }
-                }
-                .pickerStyle(.menu)
+                Text(store.selectedMeal.title)
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
         }
         .padding().background(.background, in: RoundedRectangle(cornerRadius: 18))

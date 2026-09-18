@@ -40,7 +40,12 @@ actor MenuRepository {
         let cached = read(key)
         do {
             let result = try await api.send(
-                path: "menus/\(key.hall.rawValue)/\(key.date)/\(key.meal.rawValue).json",
+                path: "v1/menu",
+                query: [
+                    URLQueryItem(name: "hall", value: key.hall.rawValue),
+                    URLQueryItem(name: "date", value: key.date),
+                    URLQueryItem(name: "meal", value: key.meal.rawValue)
+                ],
                 etag: cached?.etag
             )
             try Task.checkCancellation()

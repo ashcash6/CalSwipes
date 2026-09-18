@@ -1,15 +1,25 @@
 """Adapter for Berkeley's public EatecExchange XML; never infer absent nutrition."""
+import logging
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from defusedxml import ElementTree
 from app.schemas import Hall, Item, Macros, Meal, MenuContent, Serving
 
+log = logging.getLogger("berkeley.parser")
+
 HALLS = {
-    Hall.crossroads: ("Crossroads", "Crossroads"),
-    Hall.cafe_3: ("Cafe_3", "Cafe 3"),
-    Hall.foothill: ("Foothill", "Foothill"),
-    Hall.clark_kerr: ("Clark_Kerr_Campus", "Clark Kerr Campus"),
+    Hall.crossroads:     ("Crossroads",       "Crossroads"),
+    Hall.cafe_3:         ("Cafe_3",            "Cafe 3"),
+    Hall.foothill:       ("Foothill",          "Foothill"),
+    Hall.clark_kerr:     ("Clark_Kerr_Campus", "Clark Kerr Campus"),
+    Hall.golden_bear:    ("Golden_Bear_Cafe",  "Golden Bear Café"),
+    Hall.bear_market:    ("Bear_Market",       "Bear Market"),
+    Hall.cub_market:     ("Cub_Market",        "Cub Market"),
+    Hall.local_x_design: ("Local_x_Design",    "Local x Design"),
+    Hall.the_den:        ("Den",               "Den"),
+    Hall.qualcomm_cafe:  ("Qualcomm_Cafe",     "Qualcomm Café"),
+    Hall.gateway_cafe:   ("Gateway_Cafe",      "Gateway Café"),
 }
 NUTRIENTS = {
     "Calories (kcal)": "calories_kcal", "Protein (g)": "protein_g",
@@ -90,9 +100,14 @@ def parse_xml(raw: bytes, hall: Hall, day: date) -> list[MenuContent]:
                         macros=macros, nutrition_status=status, warnings=warnings)
             existing = groups[meal].get(rid)
             if existing:
+                all_categories = sorted(set(existing.categories + item.categories))
                 if existing.model_dump(exclude={"categories"}) != item.model_dump(exclude={"categories"}):
-                    raise SourceError(f"Conflicting copies of recipe {rid}")
-                existing.categories = sorted(set(existing.categories + item.categories))
+                    log.warning("duplicate_recipe_conflict hall=%s meal=%s id=%s name=%r; keeping last occurrence",
+                                hall.value, meal.value, rid, name)
+                    item.categories = all_categories
+                    groups[meal][rid] = item
+                else:
+                    existing.categories = all_categories
             else:
                 groups[meal][rid] = item
     return [MenuContent(hall=hall, date=day, meal=m,

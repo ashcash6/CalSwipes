@@ -9,6 +9,13 @@ class Hall(StrEnum):
     cafe_3 = "cafe-3"
     foothill = "foothill"
     clark_kerr = "clark-kerr"
+    golden_bear = "golden-bear"
+    bear_market = "bear-market"
+    cub_market = "cub-market"
+    local_x_design = "local-x-design"
+    the_den = "the-den"
+    qualcomm_cafe = "qualcomm-cafe"
+    gateway_cafe = "gateway-cafe"
 
 
 class Meal(StrEnum):
