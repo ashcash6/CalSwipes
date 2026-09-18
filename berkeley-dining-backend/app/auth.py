@@ -11,7 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
-from app.db import AuthChallenge, AuthRateBucket, AuthSession, User
+from app.db import AuthChallenge, AuthRateBucket, AuthSession, User, UserDietaryProfile
+from app.schemas import DietaryProfile, DietaryProfileResponse
 
 APPLE_ISSUER = "https://appleid.apple.com"
 SESSION_ISSUER = "berkeley-plate-api"
@@ -75,6 +76,7 @@ class AppleVerifier:
 
 def router(settings, engine, verifier=None):
     routes = APIRouter(prefix="/v1/auth", tags=["Authentication"])
+    profile = APIRouter(prefix="/v1/profile", tags=["Profile"])
     verifier = verifier or AppleVerifier(settings.apple_bundle_id)
     bearer = HTTPBearer(auto_error=False)
 
@@ -170,4 +172,43 @@ def router(settings, engine, verifier=None):
             c.execute(delete(AuthSession).where(AuthSession.id == identity[0]))
         return Response(status_code=204, headers={"Cache-Control":"no-store"})
 
-    return routes
+    @profile.get("/dietary", response_model=DietaryProfileResponse)
+    def get_dietary(response: Response, identity=Depends(authenticated)):
+        _, account = identity
+        with Session(engine) as db:
+            row = db.get(UserDietaryProfile, account.id)
+        response.headers["Cache-Control"] = "no-store"
+        if row is None:
+            return DietaryProfileResponse()
+        return DietaryProfileResponse(
+            allergies=row.allergies or [],
+            dietary_preferences=row.dietary_preferences or [],
+            updated_at=row.updated_at,
+        )
+
+    @profile.put("/dietary", response_model=DietaryProfileResponse)
+    def put_dietary(body: DietaryProfile, response: Response, identity=Depends(authenticated)):
+        _, account = identity
+        instant = now()
+        with engine.begin() as c:
+            stmt = insert(UserDietaryProfile).values(
+                user_id=account.id,
+                allergies=body.allergies,
+                dietary_preferences=body.dietary_preferences,
+                updated_at=instant,
+            ).on_conflict_do_update(
+                index_elements=["user_id"],
+                set_=dict(allergies=body.allergies, dietary_preferences=body.dietary_preferences, updated_at=instant),
+            )
+            c.execute(stmt)
+        response.headers["Cache-Control"] = "no-store"
+        return DietaryProfileResponse(
+            allergies=body.allergies,
+            dietary_preferences=body.dietary_preferences,
+            updated_at=instant,
+        )
+
+    combined = APIRouter()
+    combined.include_router(routes)
+    combined.include_router(profile)
+    return combined

@@ -60,5 +60,13 @@ class AuthRateBucket(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class UserDietaryProfile(Base):
+    __tablename__ = "user_dietary_profiles"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    allergies: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    dietary_preferences: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 def make_engine(url):
     return create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 10})

@@ -32,9 +32,19 @@ enum Hall: String, Codable, CaseIterable, Identifiable {
 }
 
 enum Meal: String, Codable, CaseIterable, Identifiable {
-    case breakfast, lunch, dinner, lateNight = "late-night", brunch, allDay = "all-day"
+    case breakfast, brunch, lunch, allDay = "all-day", dinner, lateNight = "late-night"
     var id: String { rawValue }
     var title: String { rawValue.replacingOccurrences(of: "-", with: " ").capitalized }
+    var typicalHours: String {
+        switch self {
+        case .breakfast: return "7:00 – 10:00 AM"
+        case .brunch:    return "10:00 AM – 2:00 PM"
+        case .lunch:     return "11:00 AM – 3:00 PM"
+        case .allDay:    return "All day"
+        case .dinner:    return "5:00 – 9:00 PM"
+        case .lateNight: return "9:00 PM – 12:00 AM"
+        }
+    }
 }
 
 struct MenuKey: Hashable {
@@ -118,6 +128,8 @@ struct MenuItem: Codable, Identifiable {
     let nutritionStatus: String
     let referenceImageUrl: String?
     let warnings: [String]
+    let allergens: [String]
+    let dietaryTags: [String]
 }
 
 struct MenuEnvelope: Codable {

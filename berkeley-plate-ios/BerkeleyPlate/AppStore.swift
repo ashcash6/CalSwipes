@@ -13,6 +13,7 @@ final class AppStore: ObservableObject {
     @Published var cacheSaved = true
     /// True once foreground() has confirmed the correct meal for this hall.
     @Published private(set) var mealValidated = false
+    @Published private(set) var availableMeals: [Meal] = []
     private let api: APIClient
     private let menus: MenuRepository
     private var activeKey: MenuKey?
@@ -35,6 +36,7 @@ final class AppStore: ObservableObject {
         }
         let natural = BerkeleyClock.suggestedMeal()
         let available = (try? await fetchAvailableMeals(hall: selectedHall, date: serviceDate)) ?? []
+        availableMeals = available
         selectedMeal = BerkeleyClock.closestMeal(to: natural, among: available)
         mealValidated = true
         await loadMenu()
@@ -45,9 +47,15 @@ final class AppStore: ObservableObject {
         guard hall != selectedHall else { return }
         let natural = BerkeleyClock.suggestedMeal()
         let available = (try? await fetchAvailableMeals(hall: hall, date: serviceDate)) ?? []
-        let best = BerkeleyClock.closestMeal(to: natural, among: available)
-        selectedMeal = best
+        availableMeals = available
+        selectedMeal = BerkeleyClock.closestMeal(to: natural, among: available)
         selectedHall = hall
+    }
+
+    func selectMeal(_ meal: Meal) async {
+        guard meal != selectedMeal else { return }
+        selectedMeal = meal
+        await loadMenu()
     }
 
     private func fetchAvailableMeals(hall: Hall, date: String) async throws -> [Meal] {

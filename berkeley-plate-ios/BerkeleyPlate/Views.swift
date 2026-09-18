@@ -105,8 +105,23 @@ struct MenuScreen: View {
             HStack {
                 Label("Meal", systemImage: "sun.max").font(.subheadline.weight(.medium))
                 Spacer()
-                Text(store.selectedMeal.title)
-                    .font(.subheadline).foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Picker("Meal", selection: Binding(
+                        get: { store.selectedMeal },
+                        set: { meal in Task { await store.selectMeal(meal) } }
+                    )) {
+                        let options: [Meal] = store.availableMeals.isEmpty
+                            ? Meal.allCases
+                            : Meal.allCases.filter { store.availableMeals.contains($0) }
+                        ForEach(options) { meal in Text(meal.title).tag(meal) }
+                    }
+                    .pickerStyle(.menu)
+                    if store.mealValidated {
+                        Text(store.selectedMeal.typicalHours)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .padding().background(.background, in: RoundedRectangle(cornerRadius: 18))

@@ -1,7 +1,17 @@
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+# Canonical allergen and dietary tag names as they appear in Berkeley's XML feed.
+KNOWN_ALLERGENS: frozenset[str] = frozenset({
+    "Milk", "Egg", "Fish", "Shellfish", "Tree Nuts",
+    "Wheat", "Peanuts", "Soybeans", "Gluten", "Alcohol", "Sesame", "Pork",
+})
+KNOWN_DIETARY: frozenset[str] = frozenset({
+    "Vegan Option", "Vegetarian Option", "Halal", "Kosher",
+})
 
 
 class Hall(StrEnum):
@@ -55,6 +65,8 @@ class Item(StrictModel):
     nutrition_status: Literal["published", "unapproved", "missing"]
     reference_image_url: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    allergens: list[str] = Field(default_factory=list)
+    dietary_tags: list[str] = Field(default_factory=list)
 
 
 class MenuContent(StrictModel):
@@ -78,3 +90,29 @@ class MenuResponse(MenuContent):
 class ErrorDetail(BaseModel):
     code: str
     message: str
+
+
+class DietaryProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    allergies: list[str] = Field(default_factory=list)
+    dietary_preferences: list[str] = Field(default_factory=list)
+
+    @field_validator("allergies")
+    @classmethod
+    def validate_allergies(cls, v: list[str]) -> list[str]:
+        for a in v:
+            if a not in KNOWN_ALLERGENS:
+                raise ValueError(f"Unknown allergen: {a!r}")
+        return sorted(set(v))
+
+    @field_validator("dietary_preferences")
+    @classmethod
+    def validate_dietary(cls, v: list[str]) -> list[str]:
+        for d in v:
+            if d not in KNOWN_DIETARY:
+                raise ValueError(f"Unknown dietary preference: {d!r}")
+        return sorted(set(v))
+
+
+class DietaryProfileResponse(DietaryProfile):
+    updated_at: datetime | None = None

@@ -28,6 +28,10 @@ NUTRIENTS = {
 MASS_FACTORS = {"g": Decimal(1), "gram": Decimal(1), "grams": Decimal(1),
                 "oz": Decimal("28.349523125"), "lb": Decimal("453.59237"),
                 "kg": Decimal(1000)}
+# Expected allergen/dietary ids from Berkeley's feed; unknown ids are preserved as-is.
+ALLERGEN_IDS = {"Milk", "Egg", "Fish", "Shellfish", "Tree Nuts",
+                "Wheat", "Peanuts", "Soybeans", "Gluten", "Alcohol", "Sesame", "Pork"}
+DIETARY_IDS = {"Vegan Option", "Vegetarian Option", "Halal", "Kosher"}
 
 
 class SourceError(ValueError):
@@ -94,10 +98,21 @@ def parse_xml(raw: bytes, hall: Hall, day: date) -> list[MenuContent]:
             warnings = [] if weight is not None else ["serving_weight_unknown"]
             if status != "published":
                 warnings.append("nutrition_unavailable")
+            allergens_el = recipe.find("allergens")
+            allergens = sorted(
+                el.get("id") for el in (allergens_el.findall("allergen") if allergens_el is not None else [])
+                if el.get("id") and (el.text or "").strip().lower() == "yes"
+            )
+            dietary_el = recipe.find("dietaryChoices")
+            dietary_tags = sorted(
+                el.get("id") for el in (dietary_el.findall("dietaryChoice") if dietary_el is not None else [])
+                if el.get("id") and (el.text or "").strip().lower() == "yes"
+            )
             item = Item(id=rid, name=name, categories=[a.get("category", "").strip()],
                         serving=Serving(quantity=quantity, unit=unit, description=a.get("servingDescription"),
                                         weight_g=weight, weight_basis="source_mass_unit" if factor else "unknown"),
-                        macros=macros, nutrition_status=status, warnings=warnings)
+                        macros=macros, nutrition_status=status, warnings=warnings,
+                        allergens=allergens, dietary_tags=dietary_tags)
             existing = groups[meal].get(rid)
             if existing:
                 all_categories = sorted(set(existing.categories + item.categories))
