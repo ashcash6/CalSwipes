@@ -138,7 +138,7 @@ struct MenuScreen: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
-            Text("Photograph your meal and tap to outline the plate and foods on this iPhone. Portion estimates are not available yet.")
+            Text("Take a photo — your iPhone identifies foods from today's menu automatically. Values are per published serving; portion size is not measured.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Text("\(menu.items.count) menu items").font(.headline)
@@ -153,7 +153,7 @@ struct MenuScreen: View {
                     store.toggle(item.id)
                 }
             }
-            Text("A listed serving is a reference amount, not a measurement of your plate. Photo-based estimation is not included in this build.")
+            Text("A listed serving is a reference amount, not a measurement of your plate. Nutrition values are estimates.")
                 .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
         }
     }

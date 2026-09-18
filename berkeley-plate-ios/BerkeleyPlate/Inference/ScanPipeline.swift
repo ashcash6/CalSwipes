@@ -65,6 +65,7 @@ struct ScanResult {
     let lower: Macros?
     let upper: Macros?
     let isDemo: Bool
+    let isVisionClassified: Bool
     let menuRevision: String
 }
 
@@ -178,7 +179,7 @@ enum NutritionMath {
             [value.caloriesKcal, value.proteinG, value.carbsG, value.fatG].allSatisfy(\.isFinite)
         }) else { throw PipelineFailure.invalidOutput }
         return ScanResult(lines: lines, total: total, lower: lower, upper: upper,
-                          isDemo: false, menuRevision: menu.revision)
+                          isDemo: false, isVisionClassified: false, menuRevision: menu.revision)
     }
 }
 
@@ -194,7 +195,7 @@ struct DemoScanPipeline: ScanAnalyzing {
         guard !selected.isEmpty else { throw PipelineFailure.unavailable("Preselect at least one menu item to preview example results.") }
         let estimates = selected.map { EstimatedServing(regionId: UUID(), menuItemId: $0.id, multiplier: 1, lowerMultiplier: 1, upperMultiplier: 1) }
         let example = try NutritionMath.result(estimates, menu: menu)
-        return ScanResult(lines: example.lines, total: example.total, lower: nil, upper: nil, isDemo: true, menuRevision: menu.revision)
+        return ScanResult(lines: example.lines, total: example.total, lower: nil, upper: nil, isDemo: true, isVisionClassified: false, menuRevision: menu.revision)
     }
 }
 #endif

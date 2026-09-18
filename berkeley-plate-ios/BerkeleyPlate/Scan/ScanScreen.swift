@@ -115,63 +115,34 @@ struct ScanScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let photo = controller.photo {
-                    RegionPhotoView(photo: photo, foods: controller.foods, plate: controller.plate,
-                        candidate: controller.candidate, points: controller.points, tap: controller.tap)
+                    Image(uiImage: UIImage(cgImage: photo.image))
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 switch controller.phase {
                 case .processing:
-                    ProgressView(controller.message).frame(maxWidth: .infinity).padding()
+                    ProgressView(controller.message).frame(maxWidth: .infinity).padding(40)
                     if controller.demoActive { demoNotice }
-                    Button("Cancel analysis") { controller.cancel() }.buttonStyle(.bordered)
+                    Button("Cancel") { controller.cancel() }.buttonStyle(.bordered)
                 case .result:
                     if let result = controller.result { resultView(result) }
                     retakeButton
                 case .blocked:
-                    Label("Analysis unavailable", systemImage: "info.circle").font(.headline)
+                    Label("Could not analyze photo", systemImage: "exclamationmark.circle")
+                        .font(.headline)
                     Text(controller.message).foregroundStyle(.secondary)
-                    Button("Start a new outline") { controller.startNewOutline() }.buttonStyle(.bordered)
-                    Text("No calorie estimate has been made. This photo is discarded when you close this screen.")
+                    Text("No calorie estimate was made. This photo stays on your iPhone.")
                         .font(.footnote).foregroundStyle(.secondary)
                     retakeButton
                     debugDemoButton
                 default:
-                    outlineControls
-                    retakeButton
-                    debugDemoButton
+                    EmptyView()
                 }
             }
             .padding(20)
         }
         .background(PlateStyle.cream)
-    }
-
-    private var outlineControls: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Outline your meal").font(.title2.bold())
-            Text("First outline the plate, then each food. Tap inside an object; add taps to refine it. Check the orange outline before keeping it.")
-                .foregroundStyle(.secondary)
-            Picker("Object", selection: $controller.selectingPlate) {
-                Text("Plate").tag(true)
-                Text("Food").tag(false)
-            }.pickerStyle(.segmented)
-            Toggle("Exclude the next tapped area", isOn: $controller.excludePoint)
-            if controller.candidate != nil {
-                Button(controller.selectingPlate ? "Keep plate outline" : "Keep food outline") { controller.confirmOutline() }
-                    .buttonStyle(.borderedProminent)
-                if controller.candidates.count > 1 {
-                    Button("Try another outline (\(controller.candidateIndex+1)/\(controller.candidates.count))") { controller.nextCandidate() }
-                }
-            }
-            if !controller.points.isEmpty { Button("Start a new outline") { controller.startNewOutline() } }
-            if !controller.message.isEmpty { Text(controller.message).foregroundStyle(.secondary) }
-            Text("\(controller.plate == nil ? "No plate kept" : "Plate kept in blue") · \(controller.foods.count) food outlines in green")
-                .font(.subheadline)
-            ForEach(Array(controller.foods.enumerated()), id: \.element.id) { index, region in
-                Button("Remove food outline \(index+1)", role: .destructive) { controller.removeFood(region.id) }
-            }
-            Text("Outlines do not identify foods or estimate portions yet. No calorie estimate has been made.")
-                .font(.footnote).foregroundStyle(.secondary)
-        }
     }
 
     private var retakeButton: some View {
@@ -207,6 +178,9 @@ struct ScanScreen: View {
             demoNotice
             Text("These are the published macros for one serving of each preselected item. No portions or confidence range were estimated.")
                 .font(.subheadline).foregroundStyle(.secondary)
+        } else if result.isVisionClassified {
+            Label("Identified from photo on this iPhone", systemImage: "camera.viewfinder")
+                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
         }
         Text(result.isDemo ? "Example total" : "Estimated total").font(.headline)
         Text("\(result.total.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
@@ -219,6 +193,10 @@ struct ScanScreen: View {
         if !result.isDemo, let lower = result.lower, let upper = result.upper {
             Text("Portion range: \(lower.caloriesKcal.formatted(.number.precision(.fractionLength(0))))–\(upper.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
                 .font(.footnote).foregroundStyle(.secondary)
+        }
+        if result.isVisionClassified {
+            Text("Values are per published serving. Portion size is not measured.")
+                .font(.caption).foregroundStyle(.secondary)
         }
         ForEach(result.lines) { line in
             HStack {

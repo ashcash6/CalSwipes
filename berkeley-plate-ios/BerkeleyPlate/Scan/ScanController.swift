@@ -31,7 +31,7 @@ final class ScanController: ObservableObject {
     private var task: Task<Void, Never>?
     private var generation = UUID()
 
-    init(request: ScanRequest, pipeline: any ScanAnalyzing = ScanPipeline(), segmenter: any PromptSegmenting = MobileSAM()) {
+    init(request: ScanRequest, pipeline: any ScanAnalyzing = VisionClassifyPipeline(), segmenter: any PromptSegmenting = MobileSAM()) {
         self.request = request
         self.pipeline = pipeline
         self.segmenter = segmenter
@@ -42,7 +42,8 @@ final class ScanController: ObservableObject {
         self.photo = photo
         result = nil
         message = ""
-        phase = .review
+        // Auto-analyze immediately — no manual outline step.
+        run(pipeline, isDemo: false)
     }
 
     func retake() {

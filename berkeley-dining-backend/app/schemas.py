@@ -24,6 +24,7 @@ class Meal(StrEnum):
     dinner = "dinner"
     late_night = "late-night"
     brunch = "brunch"
+    all_day = "all-day"
 
 
 class StrictModel(BaseModel):

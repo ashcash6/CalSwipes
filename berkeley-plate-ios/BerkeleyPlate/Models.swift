@@ -1,7 +1,18 @@
 import Foundation
 
 enum Hall: String, Codable, CaseIterable, Identifiable {
-    case crossroads, cafe3 = "cafe-3", foothill, clarkKerr = "clark-kerr"
+    case crossroads
+    case cafe3 = "cafe-3"
+    case foothill
+    case clarkKerr = "clark-kerr"
+    case goldenBear = "golden-bear"
+    case bearMarket = "bear-market"
+    case cubMarket = "cub-market"
+    case localXDesign = "local-x-design"
+    case theDen = "the-den"
+    case qualcommCafe = "qualcomm-cafe"
+    case gatewayCafe = "gateway-cafe"
+
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -9,12 +20,19 @@ enum Hall: String, Codable, CaseIterable, Identifiable {
         case .cafe3: return "Café 3"
         case .foothill: return "Foothill"
         case .clarkKerr: return "Clark Kerr"
+        case .goldenBear: return "Golden Bear Café"
+        case .bearMarket: return "Bear Market"
+        case .cubMarket: return "Cub Market"
+        case .localXDesign: return "Local x Design"
+        case .theDen: return "The Den"
+        case .qualcommCafe: return "Qualcomm Café"
+        case .gatewayCafe: return "Gateway Café"
         }
     }
 }
 
 enum Meal: String, Codable, CaseIterable, Identifiable {
-    case breakfast, lunch, dinner, lateNight = "late-night", brunch
+    case breakfast, lunch, dinner, lateNight = "late-night", brunch, allDay = "all-day"
     var id: String { rawValue }
     var title: String { rawValue.replacingOccurrences(of: "-", with: " ").capitalized }
 }

@@ -13,13 +13,13 @@ HALLS = {
     Hall.cafe_3:         ("Cafe_3",            "Cafe 3"),
     Hall.foothill:       ("Foothill",          "Foothill"),
     Hall.clark_kerr:     ("Clark_Kerr_Campus", "Clark Kerr Campus"),
-    Hall.golden_bear:    ("Golden_Bear_Cafe",  "Golden Bear Café"),
+    Hall.golden_bear:    ("Golden_Bear_Cafe",  "Golden Bear Cafe"),
     Hall.bear_market:    ("Bear_Market",       "Bear Market"),
     Hall.cub_market:     ("Cub_Market",        "Cub Market"),
     Hall.local_x_design: ("Local_x_Design",    "Local x Design"),
     Hall.the_den:        ("Den",               "Den"),
-    Hall.qualcomm_cafe:  ("Qualcomm_Cafe",     "Qualcomm Café"),
-    Hall.gateway_cafe:   ("Gateway_Cafe",      "Gateway Café"),
+    Hall.qualcomm_cafe:  ("Qualcomm_Cafe",     "Qualcomm Cafe"),
+    Hall.gateway_cafe:   ("Gateway_Cafe",      "Gateway Cafe"),
 }
 NUTRIENTS = {
     "Calories (kcal)": "calories_kcal", "Protein (g)": "protein_g",
