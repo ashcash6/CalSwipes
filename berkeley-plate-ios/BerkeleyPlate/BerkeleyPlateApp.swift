@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct BerkeleyPlateApp: App {
     @StateObject private var store = AppStore()
+    @StateObject private var daily = DailyStore()
     @Environment(\.scenePhase) private var scenePhase
     private let support = DeviceSupport.current
 
@@ -14,11 +15,13 @@ struct BerkeleyPlateApp: App {
                 if !support.canOpenShell {
                     ContentUnavailableView("Device not supported", systemImage: "iphone.slash",
                         description: Text("Berkeley Plate requires an iPhone with LiDAR or at least two rear cameras. This iPhone does not meet that requirement."))
+                } else if !daily.hasCompletedOnboarding {
+                    OnboardingScreen(store: daily)
+                        .tint(PlateStyle.green)
                 } else {
-                    MenuScreen(store: store, simulator: support.isSimulator)
+                    MainTabView(store: store, daily: daily, simulator: support.isSimulator)
                 }
             }
-            .tint(PlateStyle.green)
             .task { await store.foreground() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active, support.canOpenShell {
@@ -26,6 +29,24 @@ struct BerkeleyPlateApp: App {
                 }
             }
         }
+    }
+}
+
+struct MainTabView: View {
+    @ObservedObject var store: AppStore
+    @ObservedObject var daily: DailyStore
+    let simulator: Bool
+
+    var body: some View {
+        TabView {
+            DashboardScreen(store: store, daily: daily)
+                .tabItem { Label("Today", systemImage: "sun.max.fill") }
+            MenuScreen(store: store, daily: daily, simulator: simulator)
+                .tabItem { Label("Menu", systemImage: "fork.knife") }
+            WeightScreen(daily: daily)
+                .tabItem { Label("Weight", systemImage: "scalemass.fill") }
+        }
+        .tint(PlateStyle.green)
     }
 }
 

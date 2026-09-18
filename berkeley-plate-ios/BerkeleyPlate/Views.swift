@@ -2,8 +2,9 @@ import SwiftUI
 
 enum PlateStyle {
     static let green = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(red: 0.55, green: 0.83, blue: 0.67, alpha: 1)
-            : UIColor(red: 0.12, green: 0.31, blue: 0.25, alpha: 1)
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.44, green: 0.78, blue: 0.52, alpha: 1)   // bright forest green on dark
+            : UIColor(red: 0.17, green: 0.48, blue: 0.25, alpha: 1)   // deep forest green on light
     })
     static let cream = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark ? .systemGroupedBackground
@@ -14,6 +15,7 @@ enum PlateStyle {
 
 struct MenuScreen: View {
     @ObservedObject var store: AppStore
+    @ObservedObject var daily: DailyStore
     let simulator: Bool
     @State private var aboutPresented = false
     @State private var search = ""
@@ -73,27 +75,16 @@ struct MenuScreen: View {
             .searchable(text: $search, prompt: "Find a menu item")
             .refreshable { await store.loadMenu() }
             .task(id: store.key) {
-                // Skip initial render — foreground() sets mealValidated once the
-                // correct meal is confirmed, and calls loadMenu() itself.
                 guard store.mealValidated else { return }
                 search = ""
                 await store.loadMenu()
             }
-            .safeAreaInset(edge: .bottom) {
-                if !store.selectedItemIds.isEmpty {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("\(store.selectedItemIds.count) expected items").font(.headline)
-                            Text("Selections help narrow your next scan.").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Clear") { store.selectedItemIds = [] }
-                    }
-                    .padding().background(.regularMaterial)
-                }
-            }
             .sheet(isPresented: $aboutPresented) { AboutView() }
-            .fullScreenCover(item: $scanRequest) { request in ScanScreen(request: request) }
+            .fullScreenCover(item: $scanRequest) { request in
+                ScanScreen(request: request, onLog: { result in
+                    daily.logMeal(result: result, menu: request.menu)
+                })
+            }
         }
     }
 
@@ -134,30 +125,24 @@ struct MenuScreen: View {
             .font(.caption).foregroundStyle(.secondary)
         if menu.status == "not_published" {
             ContentUnavailableView("No published menu", systemImage: "calendar.badge.exclamationmark",
-                description: Text("Berkeley has not listed this meal period for \(store.selectedHall.title). Try another meal. This does not confirm that the hall is closed."))
+                description: Text("Berkeley has not listed this meal period for \(store.selectedHall.title). Try another meal."))
         } else {
             Button {
                 guard menu.isFresh(), menu.date == BerkeleyClock.serviceDate() else { return }
-                scanRequest = ScanRequest(menu: menu, expected: store.selectedItemIds)
+                scanRequest = ScanRequest(menu: menu, expected: [])
             } label: {
                 Label("Photograph meal", systemImage: "camera.fill")
                     .frame(maxWidth: .infinity).padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
-            Text("Take a photo — your iPhone identifies foods from today's menu automatically. Values are per published serving; portion size is not measured.")
+            Text("Take a photo — your iPhone identifies foods automatically. Values are per published serving.")
                 .font(.caption).foregroundStyle(.secondary)
-            HStack {
-                Text("\(menu.items.count) menu items").font(.headline)
-                Spacer()
-                Text("Tap to preselect").font(.caption).foregroundStyle(.secondary)
-            }
+            Text("\(menu.items.count) menu items").font(.headline)
             if filteredItems.isEmpty {
                 ContentUnavailableView.search(text: search)
             }
             ForEach(filteredItems) { item in
-                MenuItemCard(item: item, selected: store.selectedItemIds.contains(item.id)) {
-                    store.toggle(item.id)
-                }
+                MenuItemCard(item: item)
             }
             Text("A listed serving is a reference amount, not a measurement of your plate. Nutrition values are estimates.")
                 .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
@@ -167,49 +152,34 @@ struct MenuScreen: View {
 
 struct MenuItemCard: View {
     let item: MenuItem
-    let selected: Bool
-    let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(item.name).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
-                        Text(item.categories.filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: selected ? "checkmark.circle.fill" : "plus.circle")
-                        .font(.title3).foregroundStyle(PlateStyle.green)
-                }
-                if let macros = item.macros {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 16) { macroLabels(macros) }
-                        VStack(alignment: .leading, spacing: 8) { macroLabels(macros) }
-                    }
-                } else {
-                    Text("Nutrition not available").font(.subheadline).foregroundStyle(.secondary)
-                }
-                Text("Serving: \(item.serving.label)").font(.caption).foregroundStyle(.secondary)
-                if item.serving.weightG == nil {
-                    Text("Serving weight not published").font(.caption).foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.name).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
+                Text(item.categories.filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .padding(18)
-            .background(selected ? PlateStyle.green.opacity(0.07) : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? PlateStyle.green : .clear, lineWidth: 1.5))
+            if let macros = item.macros {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) { macroLabels(macros) }
+                    VStack(alignment: .leading, spacing: 8) { macroLabels(macros) }
+                }
+            } else {
+                Text("Nutrition not available").font(.subheadline).foregroundStyle(.secondary)
+            }
+            Text("Serving: \(item.serving.label)").font(.caption).foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
+        .padding(18)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
         .accessibilityLabel(item.name)
         .accessibilityValue(accessibilitySummary)
-        .accessibilityHint("Double tap to change expected items")
     }
 
     private var accessibilitySummary: String {
-        var value = selected ? "Selected. " : "Not selected. "
+        var value = ""
         if let macros = item.macros {
-            value += "\(macros.caloriesKcal.formatted()) calories, \(macros.proteinG.formatted()) grams protein, \(macros.carbsG.formatted()) grams carbohydrates, \(macros.fatG.formatted()) grams fat. "
+            value += "\(macros.caloriesKcal.formatted()) calories, \(macros.proteinG.formatted()) grams protein. "
         } else { value += "Nutrition unavailable. " }
         return value + "Per serving: " + item.serving.label
     }
@@ -234,11 +204,10 @@ struct AboutView: View {
             List {
                 Section("Your data") {
                     Text("Downloaded public menus are cached on this device. Captured photos stay in memory on this iPhone and are discarded when you close the camera flow. Photos are not uploaded or saved to Photos.")
-                    Text("Item preselections stay in memory and are cleared when you switch menus.")
                 }
                 Section("About this build") {
-                    Text("Menus and photo capture")
-                    Text("Nutrition figures are Berkeley's published per-serving reference values. Automated food analysis, portion estimation, meal logging and HealthKit are planned for later phases.")
+                    Text("Menus, photo capture, and nutrition tracking.")
+                    Text("Nutrition figures are Berkeley's published per-serving reference values. Food recognition uses Apple's on-device Vision framework.")
                         .font(.footnote).foregroundStyle(.secondary)
                     Text("An independent app. Not affiliated with UC Berkeley. Nutrition values are estimates, not medical advice.")
                         .font(.caption2).foregroundStyle(.secondary)

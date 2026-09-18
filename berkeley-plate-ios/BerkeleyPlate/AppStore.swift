@@ -11,10 +11,7 @@ final class AppStore: ObservableObject {
     @Published var menuError: String?
     @Published var isOffline = false
     @Published var cacheSaved = true
-    @Published var selectedItemIds = Set<String>()
-    /// True once `foreground()` has run its available-meals check and set
-    /// the correct meal. Used to gate MenuScreen's task so the initial render
-    /// never loads with a meal that might not be published for this hall.
+    /// True once foreground() has confirmed the correct meal for this hall.
     @Published private(set) var mealValidated = false
     private let api: APIClient
     private let menus: MenuRepository
@@ -32,6 +29,10 @@ final class AppStore: ObservableObject {
 
     func foreground() async {
         serviceDate = BerkeleyClock.serviceDate()
+        // Auto-detect hall from location; stays crossroads if unavailable or outside range
+        if let detected = await LocationService.shared.nearestHall() {
+            selectedHall = detected
+        }
         let natural = BerkeleyClock.suggestedMeal()
         let available = (try? await fetchAvailableMeals(hall: selectedHall, date: serviceDate)) ?? []
         selectedMeal = BerkeleyClock.closestMeal(to: natural, among: available)
@@ -39,15 +40,12 @@ final class AppStore: ObservableObject {
         await loadMenu()
     }
 
-    /// Changes the hall and recalculates the best meal for the new hall's
-    /// published periods. Both properties are set before returning so
-    /// the key change fires only once, avoiding a double menu load.
+    /// Changes the hall and recalculates the best available meal.
     func selectHall(_ hall: Hall) async {
         guard hall != selectedHall else { return }
         let natural = BerkeleyClock.suggestedMeal()
         let available = (try? await fetchAvailableMeals(hall: hall, date: serviceDate)) ?? []
         let best = BerkeleyClock.closestMeal(to: natural, among: available)
-        // Assign both synchronously so the computed key changes in one SwiftUI cycle.
         selectedMeal = best
         selectedHall = hall
     }
@@ -65,7 +63,6 @@ final class AppStore: ObservableObject {
         let generation = UUID()
         loadGeneration = generation
         let requestedKey = key
-        if activeKey != requestedKey { selectedItemIds = [] }
         activeKey = requestedKey
         menu = nil
         menuError = nil
@@ -77,15 +74,9 @@ final class AppStore: ObservableObject {
             menu = result.menu
             isOffline = result.isOffline
             cacheSaved = result.cacheSaved
-            selectedItemIds.formIntersection(Set(result.menu.items.map(\.id)))
         } catch {
             guard !Task.isCancelled, key == requestedKey, loadGeneration == generation else { return }
             menuError = error.localizedDescription
         }
-    }
-
-    func toggle(_ id: String) {
-        if selectedItemIds.contains(id) { selectedItemIds.remove(id) }
-        else { selectedItemIds.insert(id) }
     }
 }

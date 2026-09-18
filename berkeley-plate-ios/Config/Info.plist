@@ -24,6 +24,8 @@
 	<string>4</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Photograph your meal to estimate its portions and nutrition on this iPhone.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Berkeley Plate uses your location to automatically detect which dining hall you're in.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

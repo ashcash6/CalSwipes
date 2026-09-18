@@ -7,9 +7,12 @@ struct ScanScreen: View {
     @StateObject private var camera = CameraService()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    let onLog: ((ScanResult) -> Void)?
+    @State private var logged = false
 
-    init(request: ScanRequest) {
+    init(request: ScanRequest, onLog: ((ScanResult) -> Void)? = nil) {
         _controller = StateObject(wrappedValue: ScanController(request: request))
+        self.onLog = onLog
     }
 
     var body: some View {
@@ -178,6 +181,12 @@ struct ScanScreen: View {
             demoNotice
             Text("These are the published macros for one serving of each preselected item. No portions or confidence range were estimated.")
                 .font(.subheadline).foregroundStyle(.secondary)
+        } else if result.isGenericFallback {
+            Label("Generic estimate — food not found in today's menu", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.medium)).foregroundStyle(.orange)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
         } else if result.isVisionClassified {
             Label("Identified from photo on this iPhone", systemImage: "camera.viewfinder")
                 .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
@@ -209,6 +218,29 @@ struct ScanScreen: View {
             }
             .padding().background(.background, in: RoundedRectangle(cornerRadius: 14))
         }
-        Text("Not saved to meal history or HealthKit.").font(.footnote).foregroundStyle(.secondary)
+        if let onLog, !result.isDemo {
+            if !logged {
+                Button {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    onLog(result)
+                    withAnimation { logged = true }
+                } label: {
+                    Label("Log this meal", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(PlateStyle.green)
+                    Text("Meal logged!").font(.headline).foregroundStyle(PlateStyle.green)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(PlateStyle.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+            }
+        } else {
+            Text("Photo stays on this iPhone.").font(.footnote).foregroundStyle(.secondary)
+        }
     }
 }
