@@ -3,7 +3,7 @@ import base64
 import json
 import httpx
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent"
 CONFIDENCE_THRESHOLD = 0.6
 
 
