@@ -133,8 +133,8 @@ def create_app(settings=None, engine=None, apple_verifier=None):
         try:
             result = vision.identify_items(photo_bytes, body.mime_type, scannable, settings.gemini_api_key)
         except httpx.HTTPStatusError as exc:
-            log.error("gemini_http_error status=%s", exc.response.status_code)
-            return error("vision_error", "Photo recognition service returned an error", 502)
+            log.error("gemini_http_error status=%s body=%s", exc.response.status_code, exc.response.text[:500])
+            return error("vision_error", f"Gemini {exc.response.status_code}: {exc.response.text[:300]}", 502)
         except httpx.TransportError as exc:
             log.error("gemini_transport_error %s", exc)
             return error("vision_error", "Photo recognition service is temporarily unavailable", 503)
