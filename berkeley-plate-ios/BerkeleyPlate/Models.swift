@@ -177,3 +177,26 @@ enum JSONCoding {
         return encoder
     }
 }
+
+// MARK: - Gemini scan-meal request/response
+
+struct ScanMealRequest: Encodable {
+    let photo: String
+    let mimeType: String
+    let hall: String
+    let date: String
+    let meal: String
+}
+
+struct ScanMatchedItem: Decodable {
+    let itemId: String
+    let itemName: String
+    let confidence: Double
+    let portionMultiplier: Double
+    let adjustedMacros: Macros?
+}
+
+struct ScanMealResponse: Decodable {
+    let matched: [ScanMatchedItem]
+    let noMatchReason: String?
+}

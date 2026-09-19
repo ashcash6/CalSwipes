@@ -54,4 +54,27 @@ actor APIClient {
         }
         return HTTPResult(data: data, response: http)
     }
+
+    func post<Body: Encodable>(path: String, body: Body) async throws -> HTTPResult {
+        guard baseURL.scheme == "https", let host = baseURL.host,
+              !host.hasSuffix(".invalid"), baseURL.user == nil, baseURL.password == nil else {
+            throw APIError.configuration
+        }
+        let withPath = path.split(separator: "/", omittingEmptySubsequences: true)
+            .reduce(baseURL) { $0.appendingPathComponent(String($1)) }
+        var request = URLRequest(url: withPath, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONCoding.encoder().encode(body)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let domain = (object?["error"] as? [String: Any])?["message"] as? String
+            let fallback = "The service is temporarily unavailable. Please try again."
+            throw APIError.server(http.statusCode, domain ?? fallback)
+        }
+        return HTTPResult(data: data, response: http)
+    }
 }

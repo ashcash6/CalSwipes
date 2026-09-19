@@ -6,7 +6,7 @@ enum PipelineFailure: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable(let detail): return detail
-        case .staleMenu: return "Refresh today’s menu before starting a new analysis."
+        case .staleMenu: return "Refresh today's menu before starting a new analysis."
         case .invalidOutput: return "The analysis returned inconsistent data. No estimate was produced."
         case .needsIdentification: return "Some food could not be identified. No total was calculated."
         case .metricDepthRequired: return "Calibrated metric depth is required to estimate portions. This build captures a photo only."
@@ -67,6 +67,7 @@ struct ScanResult {
     let isDemo: Bool
     let isVisionClassified: Bool
     let isGenericFallback: Bool
+    let isGeminiClassified: Bool
     let menuRevision: String
 }
 
@@ -106,7 +107,7 @@ actor ScanPipeline: ScanAnalyzing {
         try segmented.foods.forEach { try $0.validate() }
         try segmented.plate?.validate()
         try Task.checkCancellation()
-        await progress("Matching today’s menu…")
+        await progress("Matching today's menu…")
         let matches = try await classification.classify(segmented.foods, photo: photo, menu: menu,
             expected: expected.intersection(Set(menu.items.map(\.id))))
         guard matches.count == segmented.foods.count,
@@ -181,7 +182,7 @@ enum NutritionMath {
         }) else { throw PipelineFailure.invalidOutput }
         return ScanResult(lines: lines, total: total, lower: lower, upper: upper,
                           isDemo: false, isVisionClassified: false, isGenericFallback: false,
-                          menuRevision: menu.revision)
+                          isGeminiClassified: false, menuRevision: menu.revision)
     }
 }
 
@@ -199,7 +200,7 @@ struct DemoScanPipeline: ScanAnalyzing {
         let example = try NutritionMath.result(estimates, menu: menu)
         return ScanResult(lines: example.lines, total: example.total, lower: nil, upper: nil,
                           isDemo: true, isVisionClassified: false, isGenericFallback: false,
-                          menuRevision: menu.revision)
+                          isGeminiClassified: false, menuRevision: menu.revision)
     }
 }
 #endif

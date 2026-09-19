@@ -89,7 +89,7 @@ actor VisionClassifyPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: lines, total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: true, isGenericFallback: false,
-                          menuRevision: menuRevision)
+                          isGeminiClassified: false, menuRevision: menuRevision)
     }
 
     // MARK: - Generic fallback
@@ -118,7 +118,9 @@ actor VisionClassifyPipeline: ScanAnalyzing {
             macros: best.2,
             nutritionStatus: "published",
             referenceImageUrl: nil,
-            warnings: ["Values are generic averages, not from today's dining hall menu."]
+            warnings: ["Values are generic averages, not from today's dining hall menu."],
+            allergens: [],
+            dietaryTags: []
         )
         let line = EstimatedLine(id: UUID(), item: item, multiplier: 1.0, macros: best.2)
         let total = best.2
@@ -127,7 +129,7 @@ actor VisionClassifyPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: [line], total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: true, isGenericFallback: true,
-                          menuRevision: menuRevision)
+                          isGeminiClassified: false, menuRevision: menuRevision)
     }
 }
 

@@ -31,7 +31,7 @@ final class ScanController: ObservableObject {
     private var task: Task<Void, Never>?
     private var generation = UUID()
 
-    init(request: ScanRequest, pipeline: any ScanAnalyzing = VisionClassifyPipeline(), segmenter: any PromptSegmenting = MobileSAM()) {
+    init(request: ScanRequest, pipeline: any ScanAnalyzing = GeminiScanPipeline(), segmenter: any PromptSegmenting = MobileSAM()) {
         self.request = request
         self.pipeline = pipeline
         self.segmenter = segmenter
@@ -144,7 +144,7 @@ final class ScanController: ObservableObject {
         demoActive = isDemo
         result = nil
         phase = .processing
-        message = isDemo ? "Preparing example results…" : "Preparing on-device analysis…"
+        message = isDemo ? "Preparing example results…" : "Analyzing your meal…"
         let menu = request.menu
         let expected = request.expected
         task = Task { [weak self] in

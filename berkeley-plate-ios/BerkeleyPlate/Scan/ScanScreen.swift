@@ -187,6 +187,9 @@ struct ScanScreen: View {
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+        } else if result.isGeminiClassified {
+            Label("Identified from photo with AI", systemImage: "sparkles")
+                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
         } else if result.isVisionClassified {
             Label("Identified from photo on this iPhone", systemImage: "camera.viewfinder")
                 .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
@@ -203,7 +206,7 @@ struct ScanScreen: View {
             Text("Portion range: \(lower.caloriesKcal.formatted(.number.precision(.fractionLength(0))))–\(upper.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
                 .font(.footnote).foregroundStyle(.secondary)
         }
-        if result.isVisionClassified {
+        if result.isVisionClassified && !result.isGeminiClassified {
             Text("Values are per published serving. Portion size is not measured.")
                 .font(.caption).foregroundStyle(.secondary)
         }
