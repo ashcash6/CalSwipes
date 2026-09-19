@@ -92,6 +92,31 @@ class ErrorDetail(BaseModel):
     message: str
 
 
+ALLOWED_SCAN_MIME_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/webp"})
+MAX_PHOTO_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+class ScanMealRequest(StrictModel):
+    photo: str = Field(description="Base64-encoded photo")
+    mime_type: str = Field(default="image/jpeg")
+    hall: Hall
+    date: date
+    meal: Meal
+
+
+class ScanMatchedItem(StrictModel):
+    item_id: str
+    item_name: str
+    confidence: float
+    portion_multiplier: float
+    adjusted_macros: Macros | None = None
+
+
+class ScanMealResponse(StrictModel):
+    matched: list[ScanMatchedItem]
+    no_match_reason: str | None = None
+
+
 class DietaryProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     allergies: list[str] = Field(default_factory=list)

@@ -1,6 +1,9 @@
+import base64
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+import httpx
 from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
@@ -9,8 +12,9 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.db import MenuSnapshot, make_engine
 from app.importer import canonical_hash
-from app.schemas import Hall, Meal, MenuResponse
+from app.schemas import ALLOWED_SCAN_MIME_TYPES, MAX_PHOTO_BYTES, Hall, Meal, MenuResponse, ScanMealRequest, ScanMealResponse
 from app.auth import router as auth_router
+from app import vision
 
 
 def create_app(settings=None, engine=None, apple_verifier=None):
@@ -90,5 +94,76 @@ def create_app(settings=None, engine=None, apple_verifier=None):
             if etag in tags or "*" in tags:
                 return Response(status_code=304, headers=headers)
             return JSONResponse(payload, headers=headers)
+
+    @app.post("/v1/scan-meal", response_model=ScanMealResponse)
+    def scan_meal(body: ScanMealRequest):
+        if not settings.gemini_api_key:
+            return error("vision_unavailable", "Food photo recognition is not configured on this server", 503)
+
+        if body.mime_type not in ALLOWED_SCAN_MIME_TYPES:
+            return error("invalid_mime_type", f"Supported types: {', '.join(sorted(ALLOWED_SCAN_MIME_TYPES))}", 400)
+
+        try:
+            photo_bytes = base64.b64decode(body.photo, validate=True)
+        except Exception:
+            return error("invalid_photo", "photo must be valid base64", 400)
+
+        if len(photo_bytes) > MAX_PHOTO_BYTES:
+            return error("photo_too_large", "Photo must be under 10 MB", 413)
+
+        with Session(engine) as session:
+            snapshot = session.scalar(select(MenuSnapshot).where(
+                MenuSnapshot.hall == body.hall.value,
+                MenuSnapshot.service_date == body.date,
+                MenuSnapshot.meal == body.meal.value,
+            ))
+
+        if snapshot is None:
+            return error("menu_unavailable", "No menu found for this hall/date/meal", 404)
+
+        # Only pass items that have published macros — those are the only ones we can scale
+        all_items = snapshot.content.get("items", [])
+        scannable = [{"id": i["id"], "name": i["name"]} for i in all_items if i.get("macros")]
+        if not scannable:
+            return error("no_scannable_items", "No items with nutrition data available for this meal", 422)
+
+        item_map = {i["id"]: i for i in all_items}
+
+        log = logging.getLogger("berkeley.api")
+        try:
+            result = vision.identify_items(photo_bytes, body.mime_type, scannable, settings.gemini_api_key)
+        except httpx.HTTPStatusError as exc:
+            log.error("gemini_http_error status=%s", exc.response.status_code)
+            return error("vision_error", "Photo recognition service returned an error", 502)
+        except httpx.TransportError as exc:
+            log.error("gemini_transport_error %s", exc)
+            return error("vision_error", "Photo recognition service is temporarily unavailable", 503)
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            log.error("gemini_parse_error %s", exc)
+            return error("vision_error", "Unexpected response from photo recognition service", 502)
+
+        matched = []
+        for m in result.get("matched", []):
+            item = item_map.get(m["item_id"])
+            if item is None:
+                # Gemini returned an item_id that isn't in this menu — skip it
+                continue
+            base_macros = item.get("macros")
+            adjusted = None
+            if base_macros:
+                mult = m["portion_multiplier"]
+                adjusted = {k: round(v * mult, 1) for k, v in base_macros.items()}
+            matched.append({
+                "item_id": m["item_id"],
+                "item_name": m["item_name"],
+                "confidence": m["confidence"],
+                "portion_multiplier": m["portion_multiplier"],
+                "adjusted_macros": adjusted,
+            })
+
+        return JSONResponse(
+            {"matched": matched, "no_match_reason": result.get("no_match_reason")},
+            headers={"Cache-Control": "no-store"},
+        )
 
     return app

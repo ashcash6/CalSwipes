@@ -9,6 +9,7 @@ class Settings:
     user_agent: str = "BerkeleyPlate/0.1 (public menu research)"
     apple_bundle_id: str = ""
     session_secret: str = ""
+    gemini_api_key: str = ""
 
     @classmethod
     def from_env(cls):
@@ -22,4 +23,5 @@ class Settings:
         secret = os.environ.get("SESSION_SECRET", "")
         if bool(bundle) != bool(secret) or (secret and len(secret) < 32):
             raise ValueError("Set both APPLE_BUNDLE_ID and a random SESSION_SECRET of at least 32 characters")
-        return cls(url, hours, os.environ.get("SCRAPER_USER_AGENT", cls.user_agent), bundle, secret)
+        return cls(url, hours, os.environ.get("SCRAPER_USER_AGENT", cls.user_agent), bundle, secret,
+                   os.environ.get("GEMINI_API_KEY", ""))
