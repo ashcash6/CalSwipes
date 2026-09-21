@@ -137,12 +137,15 @@ final class DailyStore {
     }
 
     func saveGoal(_ goal: UserGoal) {
-        let t0 = Date()
+        let prevCalories = self.goal?.targetCalories
         self.goal = goal
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: onboardingKey)
-        updateStreak()
-        storeLog.debug("saveGoal completed in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
+        // Skip streak recompute when only dietary restrictions changed — allergens/tags
+        // don't affect targetCalories, so the streak result would be identical.
+        if prevCalories != goal.targetCalories {
+            updateStreak()
+        }
         let key = goalKey
         Task.detached(priority: .utility) {
             if let data = try? JSONCoding.encoder().encode(goal) {
@@ -213,20 +216,30 @@ final class DailyStore {
         todayFat      = fat
     }
 
-    // MARK: - Streak (cached — O(365) runs once per data change, not per render)
+    // MARK: - Streak (computed in background, result written back on main)
 
     private func updateStreak() {
-        let t0 = Date()
         guard let goal, goal.targetCalories > 0 else { currentStreak = 0; return }
         let target = goal.targetCalories
-        let cal = BerkeleyClock.calendar  // single reference; loop below uses this, not serviceDate()
+        let logsCopy = logs  // snapshot value types on main before going background
+        Task {
+            let t0 = Date()
+            let streak = await Task.detached(priority: .utility) {
+                DailyStore.computeStreak(logs: logsCopy, target: target)
+            }.value
+            self.currentStreak = streak
+            storeLog.debug("updateStreak=\(streak) in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
+        }
+    }
+
+    private nonisolated static func computeStreak(logs: [LoggedMeal], target: Double) -> Int {
+        let cal = BerkeleyClock.calendar
         var date = cal.startOfDay(for: Date())
         var streak = 0
         for _ in 0..<365 {
-            // Format inline to avoid creating a Calendar copy per iteration via serviceDate()
             let parts = cal.dateComponents([.year, .month, .day], from: date)
             let dateStr = String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
-            let dayLogs = logsForDate(dateStr)
+            let dayLogs = logs.filter { $0.date == dateStr }
             if dayLogs.isEmpty {
                 if cal.isDateInToday(date) {
                     date = cal.date(byAdding: .day, value: -1, to: date) ?? date
@@ -237,8 +250,7 @@ final class DailyStore {
             if abs(calories - target) / target <= 0.05 { streak += 1 } else { break }
             date = cal.date(byAdding: .day, value: -1, to: date) ?? date
         }
-        currentStreak = streak
-        storeLog.debug("updateStreak=\(streak) in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
+        return streak
     }
 
     private func load() {
