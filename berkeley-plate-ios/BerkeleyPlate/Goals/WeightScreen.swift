@@ -1,17 +1,6 @@
 import Charts
 import SwiftUI
 
-// MARK: - Design tokens (dark, vibrant)
-
-private enum W {
-    static let bg      = Color.black
-    static let card    = Color(white: 0.09)
-    static let surface = Color(white: 0.14)
-    static let accent  = Color(red: 0.12, green: 0.92, blue: 0.60)   // bright mint
-    static let warn    = Color(red: 1.0,  green: 0.38, blue: 0.18)   // vivid orange
-    static let red     = Color(red: 1.0,  green: 0.27, blue: 0.27)   // bad-trend red
-}
-
 // MARK: - WeightScreen
 
 struct WeightScreen: View {
@@ -26,27 +15,22 @@ struct WeightScreen: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                W.bg.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        heroHeader
-                        if todayEntry == nil { reminderBanner }
-                        WeightInputCard(todayEntry: todayEntry, onSave: { daily.logWeight($0) })
-                        if !daily.recentWeightEntries.isEmpty {
-                            trendCard
-                            statsRow
-                            historyCard
-                        }
+            ScrollView {
+                VStack(alignment: .leading, spacing: CP.sp16) {
+                    heroHeader
+                    if todayEntry == nil { reminderBanner }
+                    WeightInputCard(todayEntry: todayEntry, onSave: { daily.logWeight($0) })
+                    if !daily.recentWeightEntries.isEmpty {
+                        trendCard
+                        statsRow
+                        historyCard
                     }
-                    .padding(20)
                 }
+                .padding(CP.sp20)
             }
+            .background(CP.bg)
             .navigationTitle("Weight")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(W.bg, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
         }
         .alert("Delete entry?", isPresented: $showDeleteAlert, presenting: deletionTarget) { entry in
             Button("Delete", role: .destructive) { daily.deleteWeightEntry(id: entry.id) }
@@ -69,76 +53,68 @@ struct WeightScreen: View {
     private var heroHeader: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("CURRENT WEIGHT")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .tracking(1.4)
-
+                CPSectionLabel(text: "Current weight")
                 if let last = daily.recentWeightEntries.last {
                     HStack(alignment: .lastTextBaseline, spacing: 6) {
                         Text(last.weightLbs.formatted(.number.precision(.fractionLength(1))))
                             .font(.system(size: 56, weight: .bold, design: .rounded))
-                            .foregroundStyle(W.accent)
+                            .foregroundStyle(CP.navy)
                         Text("lbs")
                             .font(.title2.weight(.medium))
-                            .foregroundStyle(.white.opacity(0.45))
+                            .foregroundStyle(CP.textSec)
                             .padding(.bottom, 4)
                     }
                 } else {
-                    Text("—")
-                        .font(.system(size: 56, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.2))
+                    Text("No entries yet")
+                        .font(.title2.weight(.medium))
+                        .foregroundStyle(CP.textSec)
                 }
             }
             Spacer()
         }
-        .padding(.top, 8)
+        .padding(.top, CP.sp8)
     }
 
     // MARK: - Reminder
 
     private var reminderBanner: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: CP.sp14) {
             Image(systemName: "bell.badge.fill")
                 .font(.title3)
-                .foregroundStyle(W.warn)
+                .foregroundStyle(CP.carbs)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Log today's weight")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CP.text)
                 Text("Consistent tracking leads to better results.")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(CP.textSec)
             }
             Spacer()
         }
-        .padding(16)
-        .background(W.warn.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(W.warn.opacity(0.3), lineWidth: 1))
+        .padding(CP.sp16)
+        .background(CP.carbs.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r16))
+        .overlay(RoundedRectangle(cornerRadius: CP.r16).strokeBorder(CP.carbs.opacity(0.3), lineWidth: 1))
     }
 
     // MARK: - Trend chart
 
-    /// Green if the weight trend matches the goal direction, red otherwise.
     private var lineColor: Color {
         guard daily.recentWeightEntries.count >= 2,
               let first = daily.recentWeightEntries.first,
-              let last = daily.recentWeightEntries.last else { return W.accent }
+              let last  = daily.recentWeightEntries.last else { return CP.navy }
         let delta = last.weightLbs - first.weightLbs
-        guard let goal = daily.goal else { return W.accent }
+        guard let goal = daily.goal else { return CP.navy }
         switch goal.goalType {
-        case .lose:     return delta <= 0 ? W.accent : W.red
-        case .gain:     return delta >= 0 ? W.accent : W.red
-        case .maintain: return W.accent
+        case .lose:     return delta <= 0 ? CP.navy : CP.protein
+        case .gain:     return delta >= 0 ? CP.navy : CP.protein
+        case .maintain: return CP.navy
         }
     }
 
     private var trendCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("30-DAY TREND")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.4))
-                .tracking(1.4)
+        VStack(alignment: .leading, spacing: CP.sp14) {
+            CPSectionLabel(text: "30-day trend")
 
             Chart(daily.recentWeightEntries) { entry in
                 LineMark(
@@ -159,26 +135,24 @@ struct WeightScreen: View {
             .chartYScale(domain: chartYDomain)
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day, count: chartStride)) { _ in
-                    AxisGridLine().foregroundStyle(Color.white.opacity(0.07))
+                    AxisGridLine().foregroundStyle(CP.border)
                     AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                        .foregroundStyle(Color.white.opacity(0.38))
+                        .foregroundStyle(Color.secondary)
                 }
             }
             .chartYAxis {
                 AxisMarks { value in
-                    AxisGridLine().foregroundStyle(Color.white.opacity(0.07))
+                    AxisGridLine().foregroundStyle(CP.border)
                     AxisValueLabel {
                         if let v = value.as(Double.self) {
-                            Text("\(Int(v))")
-                                .foregroundStyle(Color.white.opacity(0.38))
+                            Text("\(Int(v))").foregroundStyle(Color.secondary)
                         }
                     }
                 }
             }
             .frame(height: 190)
         }
-        .padding(20)
-        .background(W.card, in: RoundedRectangle(cornerRadius: 20))
+        .cpCard(CP.sp20)
     }
 
     private var chartYDomain: ClosedRange<Double> {
@@ -190,7 +164,7 @@ struct WeightScreen: View {
 
     private var chartStride: Int {
         let count = daily.recentWeightEntries.count
-        if count <= 7 { return 1 }
+        if count <= 7  { return 1 }
         if count <= 14 { return 3 }
         return 7
     }
@@ -198,11 +172,11 @@ struct WeightScreen: View {
     // MARK: - Stats row
 
     private func deltaColor(_ delta: Double) -> Color {
-        guard let goal = daily.goal else { return delta < 0 ? W.accent : W.warn }
+        guard let goal = daily.goal else { return delta < 0 ? CP.navy : CP.carbs }
         switch goal.goalType {
-        case .lose:     return delta <= 0 ? W.accent : W.red
-        case .gain:     return delta >= 0 ? W.accent : W.red
-        case .maintain: return W.accent
+        case .lose:     return delta <= 0 ? CP.navy : CP.protein
+        case .gain:     return delta >= 0 ? CP.navy : CP.protein
+        case .maintain: return CP.navy
         }
     }
 
@@ -216,20 +190,22 @@ struct WeightScreen: View {
                     label: "Current",
                     value: last.weightLbs.formatted(.number.precision(.fractionLength(1))),
                     unit: "lbs",
-                    color: W.accent
+                    color: CP.navy
                 )
-                Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1, height: 38)
+                Divider().frame(height: 38)
                 WStatCell(
                     label: "30-day Δ",
                     value: (delta >= 0 ? "+" : "") + delta.formatted(.number.precision(.fractionLength(1))),
                     unit: "lbs",
                     color: deltaColor(delta)
                 )
-                Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1, height: 38)
-                WStatCell(label: "Entries", value: "\(entries.count)", unit: nil, color: .white)
+                Divider().frame(height: 38)
+                WStatCell(label: "Entries", value: "\(entries.count)", unit: nil, color: CP.text)
             }
-            .padding(.vertical, 18)
-            .background(W.card, in: RoundedRectangle(cornerRadius: 20))
+            .padding(.vertical, CP.sp8)
+            .background(CP.surface)
+            .clipShape(RoundedRectangle(cornerRadius: CP.r16))
+            .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
         }
     }
 
@@ -238,64 +214,60 @@ struct WeightScreen: View {
     private var historyCard: some View {
         let entries = daily.recentWeightEntries.sorted { $0.date > $1.date }.prefix(25)
         return VStack(alignment: .leading, spacing: 0) {
-            Text("HISTORY")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.4))
-                .tracking(1.4)
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
+            CPSectionLabel(text: "History")
+                .padding(.horizontal, CP.sp20)
+                .padding(.top, CP.sp16)
+                .padding(.bottom, CP.sp12)
 
             ForEach(Array(entries)) { entry in
                 VStack(spacing: 0) {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.07))
-                        .frame(height: 0.5)
-                        .padding(.leading, 20)
+                    Divider().padding(.leading, CP.sp20)
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(entry.weightLbs.formatted(.number.precision(.fractionLength(1))) + " lbs")
                                 .font(.system(.body, design: .rounded, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(CP.text)
                             Text(entry.displayDate.formatted(date: .abbreviated, time: .omitted))
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.4))
+                                .foregroundStyle(CP.textSec)
                         }
                         Spacer()
                         if entry.date == daily.todayDate {
                             Text("Today")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(W.accent)
-                                .padding(.horizontal, 10).padding(.vertical, 4)
-                                .background(W.accent.opacity(0.15), in: Capsule())
+                                .foregroundStyle(CP.navy)
+                                .padding(.horizontal, CP.sp10).padding(.vertical, CP.sp4)
+                                .background(CP.navy.opacity(0.08), in: Capsule())
                         }
                         Button {
                             editingEntry = entry
                         } label: {
                             Image(systemName: "pencil.circle.fill")
                                 .font(.title3)
-                                .foregroundStyle(Color.white.opacity(0.2))
+                                .foregroundStyle(CP.textSec)
                         }
                         .buttonStyle(.plain)
-                        .padding(.leading, 8)
+                        .padding(.leading, CP.sp8)
                         Button {
                             deletionTarget = entry
                             showDeleteAlert = true
                         } label: {
                             Image(systemName: "minus.circle.fill")
                                 .font(.title3)
-                                .foregroundStyle(Color.white.opacity(0.2))
+                                .foregroundStyle(CP.textSec)
                         }
                         .buttonStyle(.plain)
-                        .padding(.leading, 4)
+                        .padding(.leading, CP.sp4)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, CP.sp20)
+                    .padding(.vertical, CP.sp14)
                 }
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: CP.sp8)
         }
-        .background(W.card, in: RoundedRectangle(cornerRadius: 20))
+        .background(CP.surface)
+        .clipShape(RoundedRectangle(cornerRadius: CP.r16))
+        .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
     }
 }
 
@@ -314,27 +286,24 @@ private struct WeightInputCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("LOG TODAY")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.4))
-                .tracking(1.4)
+        VStack(alignment: .leading, spacing: CP.sp12) {
+            CPSectionLabel(text: "Log today")
 
-            HStack(spacing: 10) {
+            HStack(spacing: CP.sp10) {
                 TextField("165.5", text: $inputText)
                     .keyboardType(.decimalPad)
                     .focused($fieldFocused)
                     .font(.system(.title3, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .tint(W.accent)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 13)
-                    .background(W.surface, in: RoundedRectangle(cornerRadius: 14))
+                    .foregroundStyle(CP.text)
+                    .tint(CP.navy)
+                    .padding(.horizontal, CP.sp14)
+                    .padding(.vertical, CP.sp12)
+                    .background(CP.surface2, in: RoundedRectangle(cornerRadius: CP.r12))
                     .frame(maxWidth: 150)
 
                 Text("lbs")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(CP.textSec)
 
                 Spacer()
 
@@ -344,7 +313,7 @@ private struct WeightInputCard: View {
                         fieldFocused = false
                     }
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(CP.textSec)
                     .transition(.opacity.combined(with: .scale(scale: 0.85)))
                 }
 
@@ -356,29 +325,28 @@ private struct WeightInputCard: View {
                     fieldFocused = false
                 }
                 .font(.subheadline.weight(.bold))
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
+                .padding(.horizontal, CP.sp16)
+                .padding(.vertical, CP.sp12)
                 .background(
-                    parsedInput != nil ? W.accent : W.surface,
-                    in: RoundedRectangle(cornerRadius: 14)
+                    parsedInput != nil ? CP.navy : CP.surface2,
+                    in: RoundedRectangle(cornerRadius: CP.r12)
                 )
-                .foregroundStyle(parsedInput != nil ? Color.black : Color.white.opacity(0.2))
+                .foregroundStyle(parsedInput != nil ? Color.white : CP.textSec)
                 .disabled(parsedInput == nil)
                 .animation(.easeInOut(duration: 0.15), value: parsedInput != nil)
             }
             .animation(.easeInOut(duration: 0.15), value: fieldFocused)
 
             if let today = todayEntry {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(W.accent)
+                HStack(spacing: CP.sp8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(CP.navy)
                     Text("Logged today: \(today.weightLbs.formatted(.number.precision(.fractionLength(1)))) lbs")
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(CP.textSec)
                 }
                 .font(.caption)
             }
         }
-        .padding(20)
-        .background(W.card, in: RoundedRectangle(cornerRadius: 20))
+        .cpCard(CP.sp20)
     }
 }
 
@@ -399,12 +367,12 @@ private struct WStatCell: View {
                 if let unit {
                     Text(unit)
                         .font(.caption2.weight(.medium))
-                        .foregroundStyle(color.opacity(0.55))
+                        .foregroundStyle(color.opacity(0.7))
                 }
             }
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.38))
+                .foregroundStyle(CP.textSec)
         }
         .frame(maxWidth: .infinity)
     }
