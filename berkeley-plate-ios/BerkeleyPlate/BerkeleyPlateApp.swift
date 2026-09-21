@@ -68,11 +68,11 @@ struct MainTabView: View {
             PlanMyDayScreen(planStore: planStore, store: store, daily: daily)
                 .tag(2)
                 .tabItem { Label("Plan", systemImage: "calendar.badge.plus") }
-            WeightScreen(daily: daily)
+            ProfileScreen(daily: daily, store: store)
                 .tag(3)
-                .tabItem { Label("Weight", systemImage: "scalemass.fill") }
+                .tabItem { Label("Profile", systemImage: "person.circle") }
         }
-        .tint(PlateStyle.green)
+        .tint(CP.navy)
         .toolbarBackground(.regularMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .simultaneousGesture(

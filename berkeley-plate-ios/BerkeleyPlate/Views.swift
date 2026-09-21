@@ -4,16 +4,9 @@ import os
 private let menuLog = Logger(subsystem: "BerkeleyPlate", category: "MenuScreen")
 
 enum PlateStyle {
-    static let green = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.44, green: 0.78, blue: 0.52, alpha: 1)   // bright forest green on dark
-            : UIColor(red: 0.17, green: 0.48, blue: 0.25, alpha: 1)   // deep forest green on light
-    })
-    static let cream = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? .systemGroupedBackground
-            : UIColor(red: 0.97, green: 0.96, blue: 0.92, alpha: 1)
-    })
-    static let gold = Color(red: 0.88, green: 0.66, blue: 0.25)
+    static let green = CP.navy
+    static let cream = CP.bg
+    static let gold  = Color(red: 0.88, green: 0.66, blue: 0.25)
 }
 
 struct MenuScreen: View {
@@ -54,10 +47,14 @@ struct MenuScreen: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("TODAY AT BERKELEY").font(.caption.weight(.bold)).tracking(2).foregroundStyle(PlateStyle.green)
-                        Text("Make it your plate.").font(.system(.largeTitle, design: .serif, weight: .semibold))
-                        Text(store.serviceDate + " · Berkeley time").font(.subheadline).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        CPSectionLabel(text: "Today at Berkeley")
+                        Text("Make it your plate.")
+                            .font(.system(.largeTitle, design: .serif, weight: .semibold))
+                            .foregroundStyle(CP.text)
+                        Text(store.serviceDate + " · Berkeley time")
+                            .font(.subheadline)
+                            .foregroundStyle(CP.textSec)
                     }
                     selections
                     if simulator {
@@ -92,10 +89,10 @@ struct MenuScreen: View {
                         }
                     }
                 }
-                .padding(20)
+                .padding(CP.sp20)
             }
-            .background(PlateStyle.cream)
-            .navigationTitle("Berkeley Plate")
+            .background(CP.bg)
+            .navigationTitle("CalPlate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -156,7 +153,7 @@ struct MenuScreen: View {
                 }
             }
         }
-        .padding().background(.background, in: RoundedRectangle(cornerRadius: 18))
+        .cpCard(CP.sp16, radius: CP.r12)
     }
 
     @ViewBuilder
@@ -183,7 +180,7 @@ struct MenuScreen: View {
 
         if store.isOffline {
             Label("Offline · using your downloaded menu", systemImage: "wifi.slash")
-                .font(.subheadline).foregroundStyle(PlateStyle.green)
+                .font(.subheadline).foregroundStyle(CP.navy)
         }
         if !store.cacheSaved {
             Text("Menu loaded, but could not be saved for offline use.").font(.caption).foregroundStyle(.orange)
@@ -210,7 +207,7 @@ struct MenuScreen: View {
                     systemImage: "line.3.horizontal.decrease.circle.fill"
                 )
                 .font(.subheadline)
-                .foregroundStyle(PlateStyle.green)
+                .foregroundStyle(CP.navy)
             }
             Text("\(items.count) menu items").font(.headline)
             if items.isEmpty && !search.isEmpty {
@@ -234,21 +231,44 @@ struct MenuItemCard: View {
     let item: MenuItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.name).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
-                Text(item.categories.filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: CP.sp12) {
+            // Food name — dominant
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(CP.text)
+                    .multilineTextAlignment(.leading)
+                let cats = item.categories.filter { !$0.isEmpty }.joined(separator: " · ")
+                if !cats.isEmpty {
+                    Text(cats)
+                        .font(.caption2)
+                        .foregroundStyle(CP.textSec)
+                }
             }
+
             if let macros = item.macros {
-                HStack(spacing: 0) { macroLabels(macros) }
+                HStack(alignment: .center) {
+                    Text("\(Int(macros.caloriesKcal)) kcal")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(CP.navy)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    MacroChip(value: macros.proteinG, label: "P", color: CP.protein)
+                    MacroChip(value: macros.carbsG,   label: "C", color: CP.carbs)
+                    MacroChip(value: macros.fatG,     label: "F", color: CP.fat)
+                }
+                Text("Per \(item.serving.label)")
+                    .font(.caption2)
+                    .foregroundStyle(CP.textSec)
             } else {
-                Text("Nutrition not available").font(.subheadline).foregroundStyle(.secondary)
+                Text("Nutrition not available")
+                    .font(.caption)
+                    .foregroundStyle(CP.textSec)
             }
-            Text("Serving: \(item.serving.label)").font(.caption).foregroundStyle(.secondary)
         }
-        .padding(18)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+        .padding(CP.sp16)
+        .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r12))
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 1)
         .accessibilityLabel(item.name)
         .accessibilityValue(accessibilitySummary)
     }
@@ -260,21 +280,20 @@ struct MenuItemCard: View {
         } else { value += "Nutrition unavailable. " }
         return value + "Per serving: " + item.serving.label
     }
+}
 
-    @ViewBuilder
-    private func macroLabels(_ macros: Macros) -> some View {
-        Text("\(macros.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
-            .font(.subheadline.weight(.semibold)).foregroundStyle(PlateStyle.green)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        Text("P \(macros.proteinG.formatted(.number.precision(.fractionLength(0...1)))) g")
-            .font(.caption).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
-        Text("C \(macros.carbsG.formatted(.number.precision(.fractionLength(0...1)))) g")
-            .font(.caption).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
-        Text("F \(macros.fatG.formatted(.number.precision(.fractionLength(0...1)))) g")
-            .font(.caption).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
+private struct MacroChip: View {
+    let value: Double
+    let label: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Circle().fill(color).frame(width: 5, height: 5)
+            Text("\(label) \(Int(value))g")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(CP.textSec)
+        }
     }
 }
 

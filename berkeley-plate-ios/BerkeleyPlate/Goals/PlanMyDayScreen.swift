@@ -21,7 +21,7 @@ struct PlanMyDayScreen: View {
                     EmptyPlanView { showCreate = true }
                 }
             }
-            .background(PlateStyle.cream)
+            .background(CP.bg)
             .navigationTitle("Plan My Day")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -62,23 +62,23 @@ private struct EmptyPlanView: View {
     let onCreate: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: CP.sp24) {
             Spacer()
             Image(systemName: "list.bullet.clipboard")
-                .font(.system(size: 56))
-                .foregroundStyle(PlateStyle.green.opacity(0.8))
-            VStack(spacing: 8) {
+                .font(.system(size: 52))
+                .foregroundStyle(CP.navy.opacity(0.5))
+            VStack(spacing: CP.sp8) {
                 Text("No plan for today")
                     .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(CP.text)
                 Text("Plan your meals ahead and get smart recommendations based on your goals.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CP.textSec)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
-            Button("Plan My Day") { onCreate() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            CPPrimaryButton(title: "Plan My Day", icon: "calendar.badge.plus", action: onCreate)
+                .padding(.horizontal, 40)
             Spacer()
             Spacer()
         }
@@ -94,7 +94,7 @@ private struct PlanContentView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: CP.sp16) {
                 planHeader
                 offTargetBanner
                 if !daily.recurringFoods.isEmpty {
@@ -109,7 +109,7 @@ private struct PlanContentView: View {
                     confirmedBadge
                 }
             }
-            .padding(20)
+            .padding(CP.sp20)
         }
     }
 
@@ -126,35 +126,33 @@ private struct PlanContentView: View {
         let diningTarget = max(0, plan.goalCalories - plan.savedOutsideKcal - snackCal)
         let total = totalPlannedMacros
 
-        return VStack(alignment: .leading, spacing: 6) {
-            Text(plan.planDate)
-                .font(.caption.weight(.bold)).tracking(1.5)
-                .foregroundStyle(PlateStyle.green).textCase(.uppercase)
+        return VStack(alignment: .leading, spacing: CP.sp8) {
+            CPSectionLabel(text: plan.planDate)
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Your meal plan")
                         .font(.system(.title2, design: .serif, weight: .semibold))
+                        .foregroundStyle(CP.text)
 
                     if plan.savedOutsideKcal > 0 {
-                        // When outside calories are reserved, make the dining-hall target the hero number
                         HStack(spacing: 6) {
                             Image(systemName: "fork.knife")
-                                .font(.caption2).foregroundStyle(PlateStyle.green)
+                                .font(.caption2).foregroundStyle(CP.navy)
                             Text("Need \(Int(diningTarget)) kcal from dining halls")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(PlateStyle.green)
+                                .foregroundStyle(CP.navy)
                         }
                         HStack(spacing: 4) {
                             Text("Daily goal: \(Int(plan.goalCalories)) kcal")
                             Text("·")
                             Text("\(Int(plan.savedOutsideKcal)) kcal outside")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(CP.carbs)
                         }
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundStyle(CP.textSec)
                     } else {
                         Text("Goal: \(Int(plan.goalCalories)) kcal daily")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2).foregroundStyle(CP.textSec)
                     }
                 }
 
@@ -163,10 +161,10 @@ private struct PlanContentView: View {
                 if total.caloriesKcal > 0 {
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("\(Int(total.caloriesKcal)) kcal")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(PlateStyle.green)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(CP.navy)
                         Text("\(Int(total.proteinG))g pro · \(Int(total.carbsG))g carbs · \(Int(total.fatG))g fat")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2).foregroundStyle(CP.textSec)
                     }
                 }
             }
@@ -174,22 +172,21 @@ private struct PlanContentView: View {
     }
 
     private var snacksSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Recurring Foods")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
+        VStack(alignment: .leading, spacing: CP.sp8) {
+            CPSectionLabel(text: "Recurring foods")
             ForEach(daily.recurringFoods) { food in
                 let override  = plan.snackOverrides.first(where: { $0.foodId == food.id })
                 let isEnabled = override?.isEnabled ?? food.defaultEnabled
                 let kcal = Int(override?.caloriesOverride ?? food.calories)
                 let prot = Int(override?.proteinGOverride ?? food.proteinG)
-                HStack(spacing: 12) {
+                HStack(spacing: CP.sp12) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(food.name).font(.subheadline.weight(.medium))
+                        Text(food.name)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(CP.text)
                         if isEnabled {
                             Text("\(kcal) kcal · \(prot)g protein")
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(.caption2).foregroundStyle(CP.textSec)
                         }
                     }
                     Spacer()
@@ -207,38 +204,35 @@ private struct PlanContentView: View {
                         }
                     ))
                     .labelsHidden()
-                    .tint(PlateStyle.green)
+                    .tint(CP.navy)
                     .frame(width: 51)
                 }
-                .padding(12)
-                .background(.background, in: RoundedRectangle(cornerRadius: 12))
+                .padding(CP.sp12)
+                .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r12))
+                .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 1)
                 .opacity(isEnabled ? 1.0 : 0.55)
             }
         }
     }
 
     private var confirmButton: some View {
-        Button {
+        CPPrimaryButton(title: "Confirm Plan for Today", icon: "checkmark.seal.fill") {
             planStore.confirmPlan()
-        } label: {
-            Label("Confirm Plan for Today", systemImage: "checkmark.seal.fill")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
         }
-        .buttonStyle(.borderedProminent)
-        .padding(.top, 8)
+        .padding(.top, CP.sp8)
     }
 
     private var confirmedBadge: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.seal.fill").foregroundStyle(PlateStyle.green)
-            Text("Plan confirmed for today").font(.subheadline.weight(.medium))
+        HStack(spacing: CP.sp8) {
+            Image(systemName: "checkmark.seal.fill").foregroundStyle(CP.navy)
+            Text("Plan confirmed for today")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(CP.navy)
         }
-        .padding(16)
+        .padding(CP.sp16)
         .frame(maxWidth: .infinity)
-        .background(PlateStyle.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-        .padding(.top, 8)
+        .background(CP.navy.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r14))
+        .padding(.top, CP.sp8)
     }
 
     @ViewBuilder
@@ -297,10 +291,11 @@ private struct PlanSlotCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             slotHeader
-            Divider()
+            CPDivider()
             slotBody
         }
-        .background(.background, in: RoundedRectangle(cornerRadius: 18))
+        .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
+        .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
         .sheet(item: $swapRequest) { req in
             SwapSheet(request: req, planStore: planStore, goal: daily.goal)
         }
@@ -329,7 +324,7 @@ private struct PlanSlotCard: View {
         case "accepted":
             Label("Accepted", systemImage: "checkmark.circle.fill")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PlateStyle.green)
+                .foregroundStyle(CP.navy)
                 .labelStyle(.titleAndIcon)
         case "consumed_externally":
             Label("Logged", systemImage: "fork.knife")
@@ -376,20 +371,20 @@ private struct PlanSlotCard: View {
                 if let macros = slot.acceptedMacros {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(PlateStyle.green).font(.caption)
+                            .foregroundStyle(CP.navy).font(.caption)
                         Text("\(Int(macros.caloriesKcal)) kcal · \(Int(macros.proteinG))g protein")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(CP.textSec)
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .padding(.horizontal, CP.sp16).padding(.vertical, CP.sp10)
                 }
             } else if let macros = slot.acceptedMacros {
-                HStack(spacing: 12) {
+                HStack(spacing: CP.sp12) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(PlateStyle.green).font(.title3)
+                        .foregroundStyle(CP.navy).font(.title3)
                     Text("\(Int(macros.caloriesKcal)) kcal · \(Int(macros.proteinG))g protein")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(CP.textSec)
                 }
-                .padding(16)
+                .padding(CP.sp16)
             }
         }
     }
@@ -437,10 +432,7 @@ private struct PlanSlotCard: View {
                                 planStore.adjustServing(slotId: slot.id, comboId: combo.id, itemId: itemId, delta: delta)
                             }
                         )
-                        .background(
-                            Color(uiColor: .secondarySystemGroupedBackground),
-                            in: RoundedRectangle(cornerRadius: 14)
-                        )
+                        .background(CP.surface2, in: RoundedRectangle(cornerRadius: CP.r12))
                     }
                 }
                 .padding(12)
@@ -501,17 +493,17 @@ private struct MealComboCard: View {
             HStack {
                 Text("Option \(optionNumber)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PlateStyle.green)
+                    .foregroundStyle(CP.navy)
                 Spacer()
                 Text(String(format: "%.0f pts", combo.finalScore))
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(CP.textSec.opacity(0.6))
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, CP.sp14)
             .padding(.top, 11)
             .padding(.bottom, 6)
 
-            Divider().padding(.horizontal, 14)
+            CPDivider().padding(.horizontal, CP.sp14)
 
             // Components sorted protein → carbs → produce → extras
             ForEach(sortedComponents) { component in
@@ -526,33 +518,34 @@ private struct MealComboCard: View {
                 )
             }
 
-            Divider().padding(.horizontal, 14)
+            CPDivider().padding(.horizontal, CP.sp14)
 
             // Footer: totals + accept + add
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: CP.sp10) {
                 let totals = combo.totalMacros
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(Int(totals.caloriesKcal)) kcal")
-                        .font(.caption.weight(.semibold))
-                    Text("\(Int(totals.proteinG))g protein · \(Int(totals.carbsG))g carbs · \(Int(totals.fatG))g fat")
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(CP.navy)
+                    Text("\(Int(totals.proteinG))g pro · \(Int(totals.carbsG))g carbs · \(Int(totals.fatG))g fat")
+                        .font(.caption2).foregroundStyle(CP.textSec)
                 }
                 Spacer()
                 if !planIsConfirmed {
                     Button { onAddItem() } label: {
                         Image(systemName: "plus.circle")
                             .font(.title3)
-                            .foregroundStyle(PlateStyle.green.opacity(0.8))
+                            .foregroundStyle(CP.navy.opacity(0.7))
                     }
                     .buttonStyle(.plain)
                     Button("Accept", action: onAccept)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .tint(PlateStyle.green)
+                        .tint(CP.navy)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, CP.sp14)
+            .padding(.vertical, CP.sp10)
         }
     }
 }
@@ -571,7 +564,7 @@ private struct ComponentRow: View {
         HStack(spacing: 6) {
             Image(systemName: component.role.systemImage)
                 .font(.caption)
-                .foregroundStyle(roleColor(component.role))
+                .foregroundStyle(CP.roleColor(component.role))
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -605,7 +598,7 @@ private struct ComponentRow: View {
 
                     Text(servingLabel(component.servingCount))
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(PlateStyle.green)
+                        .foregroundStyle(CP.navy)
                         .frame(minWidth: 30, alignment: .center)
 
                     Button { onAdjust(0.25) } label: {
@@ -618,9 +611,9 @@ private struct ComponentRow: View {
                 // Read-only badge when no stepper (confirmed plan)
                 Text(servingLabel(component.servingCount))
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(PlateStyle.green)
+                    .foregroundStyle(CP.navy)
                     .padding(.horizontal, 5).padding(.vertical, 2)
-                    .background(PlateStyle.green.opacity(0.12), in: Capsule())
+                    .background(CP.navy.opacity(0.08), in: Capsule())
             }
 
             if showActions {
@@ -639,16 +632,6 @@ private struct ComponentRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-    }
-
-    private func roleColor(_ role: FoodRole) -> Color {
-        switch role {
-        case .protein: return .orange
-        case .carb:    return Color(red: 0.85, green: 0.70, blue: 0.10)
-        case .produce: return .green
-        case .fat:     return .blue
-        case .other:   return .gray
-        }
     }
 }
 
@@ -926,7 +909,7 @@ struct CreatePlanSheet: View {
                     LabeledContent("Dining-hall budget") {
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("\(Int(max(0, goal.targetCalories - snackCal - savedOutside))) kcal")
-                                .fontWeight(.semibold).foregroundStyle(PlateStyle.green)
+                                .fontWeight(.semibold).foregroundStyle(CP.navy)
                             Text("\(Int(max(0, goal.targetProteinG - snackPro)))g protein")
                                 .font(.caption2).foregroundStyle(.secondary)
                         }
@@ -1030,7 +1013,7 @@ struct CreatePlanSheet: View {
                 mealOccasions.append(MealOccasion(hall: defaultHall, meal: defaultMeal))
             } label: {
                 Label("Add Meal", systemImage: "plus.circle.fill")
-                    .foregroundStyle(PlateStyle.green)
+                    .foregroundStyle(CP.navy)
             }
         } header: {
             Text("Meals")
@@ -1064,14 +1047,14 @@ struct CreatePlanSheet: View {
                             }
                         }
                         .toggleStyle(.switch)
-                        .tint(PlateStyle.green)
+                        .tint(CP.navy)
 
                         Button {
                             editingSnackFood = food
                         } label: {
                             Image(systemName: "pencil.circle")
                                 .font(.title3)
-                                .foregroundStyle(PlateStyle.green.opacity(0.8))
+                                .foregroundStyle(CP.navy.opacity(0.8))
                         }
                         .buttonStyle(.plain)
                     }
@@ -1174,7 +1157,7 @@ private struct EditSnackTodaySheet: View {
                         onUpdateDefault(updated)
                         saveToday(isEnabled: override?.isEnabled ?? true)
                     }
-                    .foregroundStyle(PlateStyle.green)
+                    .foregroundStyle(CP.navy)
                 } footer: {
                     Text("Updates both today's plan and the saved default for this food.")
                 }
@@ -1256,7 +1239,7 @@ private struct AddItemSheet: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: candidate.role.systemImage)
                                         .font(.caption)
-                                        .foregroundStyle(roleColor(candidate.role))
+                                        .foregroundStyle(CP.roleColor(candidate.role))
                                     Text(candidate.itemName)
                                         .font(.subheadline.weight(.medium))
                                         .foregroundStyle(.primary)
@@ -1287,13 +1270,4 @@ private struct AddItemSheet: View {
         }
     }
 
-    private func roleColor(_ role: FoodRole) -> Color {
-        switch role {
-        case .protein: return .orange
-        case .carb:    return Color(red: 0.85, green: 0.70, blue: 0.10)
-        case .produce: return .green
-        case .fat:     return .blue
-        case .other:   return .gray
-        }
-    }
 }

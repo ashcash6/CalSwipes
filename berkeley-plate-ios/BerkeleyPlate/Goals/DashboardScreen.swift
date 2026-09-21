@@ -15,42 +15,17 @@ struct DashboardScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: CP.sp20) {
                     dateHeader
                     progressSection
-                    weeklySummarySection
-                    scanCard
                     if !daily.todayLogs.isEmpty { mealsSection }
+                    scanSection
                 }
-                .padding(20)
+                .padding(CP.sp20)
             }
-            .background(PlateStyle.cream)
+            .background(CP.bg)
             .navigationTitle("Today")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showDietarySheet = true
-                    } label: {
-                        let hasRestrictions = !(daily.goal?.allergens.isEmpty ?? true)
-                            || !(daily.goal?.dietaryTags.isEmpty ?? true)
-                        Image(systemName: hasRestrictions ? "fork.knife.circle.fill" : "fork.knife.circle")
-                    }
-                    .accessibilityLabel("Dietary restrictions")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 4) {
-                        Button {
-                            showRecurringFoods = true
-                        } label: {
-                            Image(systemName: "repeat.circle")
-                        }
-                        .accessibilityLabel("Recurring foods")
-                        Button("Edit") { showGoalSheet = true }
-                            .fontWeight(.medium)
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showGoalSheet) {
             OnboardingScreen(store: daily, editMode: true)
@@ -84,18 +59,18 @@ struct DashboardScreen: View {
         }
     }
 
-    // MARK: - Date header with streak
+    // MARK: - Date header
 
     private var dateHeader: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(daily.todayDate)
-                    .font(.caption.weight(.bold))
-                    .tracking(1.5)
-                    .foregroundStyle(PlateStyle.green)
-                    .textCase(.uppercase)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(daily.todayDate.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .tracking(1.1)
+                    .foregroundStyle(CP.textSec)
                 Text(greetingText)
                     .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(CP.text)
             }
             Spacer()
             if daily.currentStreak > 0 {
@@ -113,7 +88,7 @@ struct DashboardScreen: View {
         }
     }
 
-    // MARK: - Progress section
+    // MARK: - Progress
 
     @ViewBuilder
     private var progressSection: some View {
@@ -135,84 +110,62 @@ struct DashboardScreen: View {
         }
     }
 
-    // MARK: - Weekly summary
-
-    @ViewBuilder
-    private var weeklySummarySection: some View {
-        if let goal = daily.goal, daily.weeklyDaysLogged > 0 {
-            WeeklySummaryCard(
-                daysLogged: daily.weeklyDaysLogged,
-                weeklyCalories: daily.weeklyCalories,
-                weeklyProtein: daily.weeklyProtein,
-                weeklyCarbs: daily.weeklyCarbs,
-                weeklyFat: daily.weeklyFat,
-                targetCalories: goal.targetCalories,
-                targetProtein: goal.targetProteinG,
-                targetCarbs: goal.targetCarbsG,
-                targetFat: goal.targetFatG
-            )
-        }
-    }
-
-    // MARK: - Scan CTA
-
-    private var scanCard: some View {
-        VStack(spacing: 10) {
-            Button {
-                guard let menu = store.menu, menu.isFresh() else { return }
-                scanRequest = ScanRequest(menu: menu, expected: [])
-            } label: {
-                Label("Scan your meal", systemImage: "camera.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!(store.menu?.isFresh() ?? false))
-
-            Button {
-                showLabelScan = true
-            } label: {
-                Label("Scan nutrition label", systemImage: "barcode.viewfinder")
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.bordered)
-
-            Button {
-                showManualEntry = true
-            } label: {
-                Label("Log meal manually", systemImage: "square.and.pencil")
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.bordered)
-
-            if store.isLoading {
-                Text("Loading menu…").font(.caption).foregroundStyle(.secondary)
-            } else if store.menu == nil {
-                Text("Select a dining hall in the Menu tab first.")
-                    .font(.caption).foregroundStyle(.secondary)
-            } else if !(store.menu?.isFresh() ?? false) {
-                Text("Menu expired · pull to refresh in the Menu tab.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-    }
-
     // MARK: - Today's meals
 
     private var mealsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Today's meals").font(.headline)
-            ForEach(daily.todayLogs) { meal in
-                LoggedMealRow(
-                    meal: meal,
-                    onEdit: { editingMeal = meal },
-                    onDelete: { withAnimation { daily.deleteLog(id: meal.id) } }
-                )
+        VStack(alignment: .leading, spacing: CP.sp12) {
+            CPSectionLabel(text: "Logged today")
+            VStack(spacing: CP.sp8) {
+                ForEach(daily.todayLogs) { meal in
+                    LoggedMealRow(
+                        meal: meal,
+                        onEdit: { editingMeal = meal },
+                        onDelete: { withAnimation { daily.deleteLog(id: meal.id) } }
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Scan actions
+
+    private var scanSection: some View {
+        VStack(spacing: CP.sp8) {
+            CPSectionLabel(text: "Log a meal")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, CP.sp4)
+
+            CPPrimaryButton(
+                title: "Scan your meal",
+                icon: "camera.fill",
+                isDisabled: !(store.menu?.isFresh() ?? false)
+            ) {
+                guard let menu = store.menu, menu.isFresh() else { return }
+                scanRequest = ScanRequest(menu: menu, expected: [])
+            }
+
+            HStack(spacing: CP.sp8) {
+                CPSecondaryButton(title: "Nutrition label", icon: "barcode.viewfinder") {
+                    showLabelScan = true
+                }
+                CPSecondaryButton(title: "Log manually", icon: "square.and.pencil") {
+                    showManualEntry = true
+                }
+            }
+
+            if store.isLoading {
+                Text("Loading menu…").font(.caption).foregroundStyle(CP.textSec)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else if store.menu == nil {
+                Text("Select a dining hall in the Menu tab to enable scanning.")
+                    .font(.caption).foregroundStyle(CP.textSec)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+            } else if !(store.menu?.isFresh() ?? false) {
+                Text("Menu expired — pull to refresh in the Menu tab.")
+                    .font(.caption).foregroundStyle(CP.textSec)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
             }
         }
     }
@@ -229,127 +182,13 @@ private struct StreakBadge: View {
                 .font(.system(.title3, design: .rounded, weight: .bold))
                 .foregroundStyle(.orange)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, CP.sp12).padding(.vertical, CP.sp8)
+        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: CP.r12))
         .accessibilityLabel("\(streak)-day streak")
     }
 }
 
-// MARK: - Weekly summary card
-
-private struct WeeklySummaryCard: View {
-    let daysLogged: Int
-    let weeklyCalories: Double
-    let weeklyProtein: Double
-    let weeklyCarbs: Double
-    let weeklyFat: Double
-    let targetCalories: Double
-    let targetProtein: Double
-    let targetCarbs: Double
-    let targetFat: Double
-
-    // User's formula: total ÷ daily_target = day-equivalents consumed
-    // Compare to days actually logged to get ratio
-    private var weeklyTarget: Double { targetCalories * Double(daysLogged) }
-    private var ratio: Double {
-        guard weeklyTarget > 0 else { return 0 }
-        return weeklyCalories / weeklyTarget
-    }
-    private var weeklyCalBarColor: Color {
-        if ratio > 1.05 { return .orange }
-        if ratio >= 0.9  { return PlateStyle.green }
-        return .yellow
-    }
-
-    private var message: (String, Color) {
-        switch ratio {
-        case ..<0.85: return ("Under target this week — try to make it up.", .secondary)
-        case ..<0.95: return ("Slightly under target this week.", PlateStyle.green)
-        case ...1.05: return ("On track this week. 🎯", PlateStyle.green)
-        case ...1.15: return ("Slightly over target this week.", .orange)
-        default:      return ("Over target this week.", .orange)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("This week")
-                    .font(.headline)
-                Spacer()
-                Text("\(daysLogged) of 7 days tracked")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Calories").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(Int(weeklyCalories)) / \(Int(weeklyTarget)) kcal")
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(weeklyCalBarColor.opacity(0.12))
-                            .frame(height: 8)
-                        Capsule().fill(weeklyCalBarColor)
-                            .frame(width: geo.size.width * min(1, ratio), height: 8)
-                            .animation(.spring(response: 0.5), value: ratio)
-                    }
-                }
-                .frame(height: 8)
-            }
-
-            Text(message.0)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(message.1)
-
-            Divider()
-
-            HStack(spacing: 0) {
-                WeeklyMacroCell(label: "Protein",
-                                value: weeklyProtein,
-                                target: targetProtein * Double(daysLogged),
-                                unit: "g")
-                WeeklyMacroCell(label: "Carbs",
-                                value: weeklyCarbs,
-                                target: targetCarbs * Double(daysLogged),
-                                unit: "g")
-                WeeklyMacroCell(label: "Fat",
-                                value: weeklyFat,
-                                target: targetFat * Double(daysLogged),
-                                unit: "g")
-            }
-        }
-        .padding(20)
-        .background(.background, in: RoundedRectangle(cornerRadius: 20))
-    }
-}
-
-private struct WeeklyMacroCell: View {
-    let label: String
-    let value: Double
-    let target: Double
-    let unit: String
-
-    private var cellColor: Color {
-        guard target > 0 else { return .yellow }
-        return (value / target) >= 0.9 ? PlateStyle.green : .yellow
-    }
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text("\(Int(value))")
-                .font(.system(.subheadline, design: .rounded, weight: .bold))
-                .foregroundStyle(cellColor)
-            Text("/ \(Int(target)) \(unit)").font(.caption2).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Goal Progress Card
+// MARK: - Goal progress card
 
 private struct GoalProgressCard: View {
     let calories: Double
@@ -362,66 +201,76 @@ private struct GoalProgressCard: View {
     let targetFat: Double
     let onTapRing: () -> Void
 
-    private var calorieRatio: Double { targetCalories > 0 ? calories / targetCalories : 0 }
-    private var messageColor: Color {
-        if calorieRatio > 1.05 { return .orange }
-        if calorieRatio >= 0.9  { return PlateStyle.green }
-        return .yellow
-    }
-
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 10) {
+        VStack(spacing: CP.sp20) {
+            // Ring + macro trio
+            HStack(spacing: CP.sp20) {
                 Button(action: onTapRing) {
-                    ProgressRing(consumed: calories, target: targetCalories)
-                        .frame(width: 200, height: 200)
+                    CPProgressRing(consumed: calories, target: targetCalories, size: 130, strokeWidth: 11)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Calorie ring. Tap to view history.")
+                .accessibilityLabel("Calorie ring — tap to view history")
                 .accessibilityValue("\(Int(calories)) of \(Int(targetCalories)) calories consumed today")
 
-                Text("\(Int(calories)) of \(Int(targetCalories)) kcal")
-                    .font(.subheadline.weight(.medium).monospacedDigit())
-                    .foregroundStyle(.secondary)
-                Text(progressMessage)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(messageColor)
+                VStack(alignment: .leading, spacing: CP.sp12) {
+                    MacroStatColumn(value: protein, target: targetProtein, label: "Protein", unit: "g", color: CP.protein)
+                    MacroStatColumn(value: carbs, target: targetCarbs, label: "Carbs", unit: "g", color: CP.carbs)
+                    MacroStatColumn(value: fat, target: targetFat, label: "Fat", unit: "g", color: CP.fat)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
+            CPDivider()
+
+            // Macro bars
+            VStack(spacing: CP.sp10) {
+                CPMacroBar(label: "Protein", value: protein, target: targetProtein, unit: "g", color: CP.protein)
+                CPMacroBar(label: "Carbs",   value: carbs,   target: targetCarbs,   unit: "g", color: CP.carbs)
+                CPMacroBar(label: "Fat",     value: fat,     target: targetFat,     unit: "g", color: CP.fat)
+            }
+
+            Button {
+                onTapRing()
+            } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "calendar").font(.caption2)
-                    Text("Tap ring to view history").font(.caption2)
+                    Text("View calorie history")
+                        .font(.caption2)
                 }
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(CP.textSec)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 12) {
-                MacroBar(label: "Protein", value: protein, target: targetProtein, unit: "g")
-                MacroBar(label: "Carbs",   value: carbs,   target: targetCarbs,   unit: "g")
-                MacroBar(label: "Fat",     value: fat,     target: targetFat,     unit: "g")
-            }
+            .buttonStyle(.plain)
         }
-        .padding(24)
-        .background(.background, in: RoundedRectangle(cornerRadius: 24))
+        .cpCard(CP.sp20)
     }
+}
 
-    private var progressMessage: String {
-        guard targetCalories > 0 else { return "Ready to start!" }
-        let pct = calories / targetCalories
-        switch pct {
-        case 0: return "Ready to start!"
-        case ..<0.4: return "Getting started."
-        case ..<0.7: return "Good progress!"
-        case ..<0.95: return "Almost there!"
-        case ..<1.05: return "Goal reached!"
-        default: return "Over budget today."
+private struct MacroStatColumn: View {
+    let value: Double
+    let target: Double
+    let label: String
+    let unit: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                Text("\(Int(value))")
+                    .font(.system(.subheadline, design: .rounded, weight: .bold))
+                    .foregroundStyle(color)
+                Text("/ \(Int(target))\(unit)")
+                    .font(.caption2)
+                    .foregroundStyle(CP.textSec)
+            }
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(CP.textSec)
         }
     }
 }
 
-// MARK: - Simple Calorie Card (no goal set)
+// MARK: - Simple calorie card (no goal)
 
 private struct SimpleCalorieCard: View {
     let calories: Double
@@ -429,105 +278,29 @@ private struct SimpleCalorieCard: View {
     let onTapHistory: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: CP.sp16) {
             Button(action: onTapHistory) {
                 VStack(spacing: 4) {
                     Text(calories.formatted(.number.precision(.fractionLength(0))))
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
-                        .foregroundStyle(PlateStyle.green)
-                    Text("kcal today").font(.subheadline).foregroundStyle(.secondary)
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .foregroundStyle(CP.navy)
+                    Text("kcal today").font(.subheadline).foregroundStyle(CP.textSec)
                     HStack(spacing: 4) {
                         Image(systemName: "calendar").font(.caption2)
                         Text("Tap to view history").font(.caption2)
                     }
-                    .foregroundStyle(.tertiary).padding(.top, 2)
+                    .foregroundStyle(CP.textSec.opacity(0.6)).padding(.top, 2)
                 }
             }
             .buttonStyle(.plain).frame(maxWidth: .infinity)
 
-            Button("Set a calorie goal", action: onSetGoal).buttonStyle(.borderedProminent)
+            CPPrimaryButton(title: "Set a calorie goal", action: onSetGoal)
         }
-        .padding(24)
-        .background(.background, in: RoundedRectangle(cornerRadius: 24))
+        .cpCard(CP.sp20)
     }
 }
 
-// MARK: - Progress Ring
-
-private struct ProgressRing: View {
-    let consumed: Double
-    let target: Double
-
-    private var fraction: Double {
-        guard target > 0 else { return 0 }
-        return consumed / target
-    }
-    private var isOver: Bool { fraction > 1.05 }
-    private var ringColor: Color {
-        if fraction > 1.05 { return .orange }
-        if fraction >= 0.9  { return PlateStyle.green }
-        return .yellow
-    }
-    private var displayFraction: Double { min(1.0, fraction) }
-
-    var body: some View {
-        ZStack {
-            Circle().stroke(ringColor.opacity(0.12), lineWidth: 18)
-            if isOver { Circle().stroke(Color.orange.opacity(0.30), lineWidth: 18) }
-            Circle()
-                .trim(from: 0, to: displayFraction)
-                .stroke(ringColor, style: StrokeStyle(lineWidth: 18, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: displayFraction)
-            VStack(spacing: 3) {
-                if isOver {
-                    Text("+\(Int(consumed - target))")
-                        .font(.system(.title2, design: .rounded, weight: .bold)).foregroundStyle(.orange)
-                    Text("over").font(.caption.weight(.semibold)).foregroundStyle(.orange)
-                } else {
-                    Text(Int(max(0, target - consumed)).formatted())
-                        .font(.system(.title2, design: .rounded, weight: .bold)).foregroundStyle(ringColor)
-                    Text("left").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Macro Bar
-
-private struct MacroBar: View {
-    let label: String
-    let value: Double
-    let target: Double
-    let unit: String
-
-    private var ratio: Double { guard target > 0 else { return 0 }; return value / target }
-    private var fraction: Double { min(1.0, ratio) }
-    private var barColor: Color { ratio >= 0.9 ? PlateStyle.green : .yellow }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text(label).font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Text("\(Int(value)) / \(Int(target)) \(unit)")
-                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(barColor.opacity(0.12)).frame(height: 7)
-                    Capsule().fill(barColor)
-                        .frame(width: geo.size.width * fraction, height: 7)
-                        .animation(.spring(response: 0.5, dampingFraction: 0.75), value: fraction)
-                }
-            }
-            .frame(height: 7)
-        }
-    }
-}
-
-// MARK: - Logged Meal Row
+// MARK: - Logged meal row
 
 private struct LoggedMealRow: View {
     let meal: LoggedMeal
@@ -535,34 +308,36 @@ private struct LoggedMealRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: CP.sp12) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("\(meal.hallTitle) · \(meal.mealTitle)")
                     .font(.subheadline.weight(.medium))
+                    .foregroundStyle(CP.text)
                 Text(meal.itemNames.prefix(3).joined(separator: ", "))
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .font(.caption).foregroundStyle(CP.textSec).lineLimit(1)
                 Text(meal.macros.caloriesKcal.formatted(.number.precision(.fractionLength(0))) + " kcal")
-                    .font(.caption.weight(.semibold)).foregroundStyle(PlateStyle.green)
+                    .font(.caption.weight(.semibold)).foregroundStyle(CP.navy)
             }
             Spacer()
-            HStack(spacing: 10) {
+            HStack(spacing: CP.sp12) {
                 Button(action: onEdit) {
                     Image(systemName: "pencil.circle.fill")
-                        .foregroundStyle(.secondary).font(.title3)
+                        .foregroundStyle(CP.textSec).font(.title3)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit meal")
 
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary).font(.title3)
+                        .foregroundStyle(CP.textSec).font(.title3)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove meal")
             }
         }
-        .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .padding(CP.sp14)
+        .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r12))
+        .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 1)
     }
 }
 
@@ -660,3 +435,4 @@ private struct EditMealSheet: View {
         }
     }
 }
+
