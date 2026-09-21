@@ -24,11 +24,13 @@ final class DailyStore {
     init() { load() }
 
     var todayDate: String { BerkeleyClock.serviceDate() }
-    var todayLogs: [LoggedMeal] { logs.filter { $0.date == todayDate } }
-    var todayCalories: Double { todayLogs.reduce(0) { $0 + $1.macros.caloriesKcal } }
-    var todayProtein: Double  { todayLogs.reduce(0) { $0 + $1.macros.proteinG } }
-    var todayCarbs: Double    { todayLogs.reduce(0) { $0 + $1.macros.carbsG } }
-    var todayFat: Double      { todayLogs.reduce(0) { $0 + $1.macros.fatG } }
+
+    // Cached: recomputed only when logs mutate, not on every view render pass
+    private(set) var todayLogs: [LoggedMeal] = []
+    private(set) var todayCalories: Double = 0
+    private(set) var todayProtein: Double  = 0
+    private(set) var todayCarbs: Double    = 0
+    private(set) var todayFat: Double      = 0
 
     // MARK: - Weekly totals (rolling 7 days including today)
 
@@ -74,6 +76,7 @@ final class DailyStore {
             loggedAt: Date()
         )
         logs.append(meal)
+        updateTodayCache()
         saveLogs()
         updateStreak()
     }
@@ -85,12 +88,14 @@ final class DailyStore {
             itemNames: [name], macros: macros, loggedAt: Date()
         )
         logs.append(meal)
+        updateTodayCache()
         saveLogs()
         updateStreak()
     }
 
     func deleteLog(id: UUID) {
         logs.removeAll { $0.id == id }
+        updateTodayCache()
         saveLogs()
         updateStreak()
     }
@@ -107,6 +112,7 @@ final class DailyStore {
             macros: macros,
             loggedAt: existing.loggedAt
         )
+        updateTodayCache()
         saveLogs()
         updateStreak()
     }
@@ -188,6 +194,25 @@ final class DailyStore {
         saveRecurringFoods()
     }
 
+    // MARK: - Today cache
+
+    private func updateTodayCache() {
+        let date = todayDate
+        var cal = 0.0, pro = 0.0, carb = 0.0, fat = 0.0
+        let filtered = logs.filter { $0.date == date }
+        for m in filtered {
+            cal  += m.macros.caloriesKcal
+            pro  += m.macros.proteinG
+            carb += m.macros.carbsG
+            fat  += m.macros.fatG
+        }
+        todayLogs     = filtered
+        todayCalories = cal
+        todayProtein  = pro
+        todayCarbs    = carb
+        todayFat      = fat
+    }
+
     // MARK: - Streak (cached — O(365) runs once per data change, not per render)
 
     private func updateStreak() {
@@ -226,6 +251,7 @@ final class DailyStore {
            let saved = try? JSONCoding.decoder().decode([LoggedMeal].self, from: data) {
             logs = saved
         }
+        updateTodayCache()
         if let data = UserDefaults.standard.data(forKey: weightKey),
            let saved = try? JSONCoding.decoder().decode([WeightEntry].self, from: data) {
             weightEntries = saved

@@ -201,9 +201,13 @@ struct WeightEntry: Codable, Identifiable {
     let loggedAt: Date
 
     var displayDate: Date {
+        WeightEntry.isoDateFormatter.date(from: date) ?? loggedAt
+    }
+
+    private static let isoDateFormatter: DateFormatter = {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.timeZone = TimeZone(identifier: "America/Los_Angeles")
-        return fmt.date(from: date) ?? loggedAt
-    }
+        return fmt
+    }()
 }

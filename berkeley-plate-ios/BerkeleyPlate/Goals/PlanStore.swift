@@ -394,8 +394,12 @@ final class PlanStore {
 
     private func saveToDefaults() {
         guard let plan else { return }
-        if let data = try? JSONCoding.encoder().encode(plan) {
-            UserDefaults.standard.set(data, forKey: planDefaultsPrefix + plan.planDate)
+        let snapshot = plan
+        let key = planDefaultsPrefix + snapshot.planDate
+        Task.detached(priority: .utility) {
+            if let data = try? JSONCoding.encoder().encode(snapshot) {
+                UserDefaults.standard.set(data, forKey: key)
+            }
         }
     }
 }

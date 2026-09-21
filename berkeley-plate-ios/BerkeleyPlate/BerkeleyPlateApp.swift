@@ -56,6 +56,15 @@ struct MainTabView: View {
     var planStore: PlanStore
     let simulator: Bool
     @State private var selectedTab = 0
+    @AppStorage("appearancePref") private var appearancePref = "system"
+
+    private var preferredColorScheme: ColorScheme? {
+        switch appearancePref {
+        case "light": return .light
+        case "dark":  return .dark
+        default:      return nil
+        }
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -73,6 +82,7 @@ struct MainTabView: View {
                 .tabItem { Label("Profile", systemImage: "person.circle") }
         }
         .tint(CP.navy)
+        .preferredColorScheme(preferredColorScheme)
         .toolbarBackground(.regularMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .simultaneousGesture(

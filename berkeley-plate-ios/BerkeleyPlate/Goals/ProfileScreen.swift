@@ -8,6 +8,16 @@ struct ProfileScreen: View {
     @State private var showRecurringFoods = false
     @State private var showWeight = false
     @State private var showAbout = false
+    @State private var showAppearancePicker = false
+    @AppStorage("appearancePref") private var appearancePref = "system"
+
+    private var appearanceLabel: String {
+        switch appearancePref {
+        case "light": return "Light"
+        case "dark":  return "Dark"
+        default:      return "System"
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -124,12 +134,22 @@ struct ProfileScreen: View {
             CPSectionLabel(text: "App")
 
             VStack(spacing: 0) {
+                ProfileRow(icon: "circle.lefthalf.filled", label: "Appearance", value: appearanceLabel) {
+                    showAppearancePicker = true
+                }
+                Divider().padding(.leading, 52)
                 ProfileRow(icon: "info.circle.fill", label: "About CalPlate") {
                     showAbout = true
                 }
             }
             .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
             .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
+        }
+        .confirmationDialog("Appearance", isPresented: $showAppearancePicker) {
+            Button("System") { appearancePref = "system" }
+            Button("Light")  { appearancePref = "light" }
+            Button("Dark")   { appearancePref = "dark" }
+            Button("Cancel", role: .cancel) { }
         }
     }
 }
@@ -139,6 +159,7 @@ struct ProfileScreen: View {
 private struct ProfileRow: View {
     let icon: String
     let label: String
+    var value: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -151,6 +172,11 @@ private struct ProfileRow: View {
                 Text(label)
                     .font(.body)
                 Spacer()
+                if let value {
+                    Text(value)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)

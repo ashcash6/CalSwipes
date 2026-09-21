@@ -347,12 +347,20 @@ private struct SelectionRow: View {
 
 private struct HeightSlider: View {
     @Binding var heightIn: Double
-    @State private var inputText = ""
+    // draft is local — slider drag only re-renders this view, not the parent
+    @State private var draft: Double
+    @State private var inputText: String
     @FocusState private var focused: Bool
 
+    init(heightIn: Binding<Double>) {
+        self._heightIn = heightIn
+        self._draft = State(initialValue: heightIn.wrappedValue)
+        self._inputText = State(initialValue: "\(Int(heightIn.wrappedValue))")
+    }
+
     private var feetInchesDisplay: String {
-        let feet = Int(heightIn) / 12
-        let inches = Int(heightIn) % 12
+        let feet = Int(draft) / 12
+        let inches = Int(draft) % 12
         return "\(feet)' \(inches)\""
     }
 
@@ -365,21 +373,26 @@ private struct HeightSlider: View {
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(PlateStyle.green)
             }
-            Slider(value: $heightIn, in: 58...82, step: 1)
-                .tint(PlateStyle.green)
-                .onChange(of: heightIn) { _, v in
-                    if !focused { inputText = "\(Int(v))" }
-                }
+            Slider(value: $draft, in: 58...82, step: 1, onEditingChanged: { editing in
+                if !editing { heightIn = draft }
+            })
+            .tint(PlateStyle.green)
+            .onChange(of: draft) { _, v in
+                if !focused { inputText = "\(Int(v))" }
+            }
             HStack(spacing: 6) {
                 Text("or type:")
                     .font(.caption).foregroundStyle(.secondary)
-                TextField("\(Int(heightIn))", text: $inputText)
+                TextField("\(Int(draft))", text: $inputText)
                     .keyboardType(.numberPad)
                     .focused($focused)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 58)
                     .onChange(of: inputText) { _, val in
-                        if let v = Double(val), (58...82).contains(v) { heightIn = v }
+                        if let v = Double(val), (58...82).contains(v) {
+                            draft = v
+                            heightIn = v
+                        }
                     }
                 Text("inches total")
                     .font(.caption).foregroundStyle(.secondary)
@@ -387,7 +400,6 @@ private struct HeightSlider: View {
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-        .onAppear { inputText = "\(Int(heightIn))" }
     }
 }
 
@@ -395,33 +407,45 @@ private struct HeightSlider: View {
 
 private struct WeightSlider: View {
     @Binding var weightLbs: Double
-    @State private var inputText = ""
+    @State private var draft: Double
+    @State private var inputText: String
     @FocusState private var focused: Bool
+
+    init(weightLbs: Binding<Double>) {
+        self._weightLbs = weightLbs
+        self._draft = State(initialValue: weightLbs.wrappedValue)
+        self._inputText = State(initialValue: "\(Int(weightLbs.wrappedValue))")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Weight").font(.headline)
                 Spacer()
-                Text("\(Int(weightLbs)) lbs")
+                Text("\(Int(draft)) lbs")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(PlateStyle.green)
             }
-            Slider(value: $weightLbs, in: 90...400, step: 1)
-                .tint(PlateStyle.green)
-                .onChange(of: weightLbs) { _, v in
-                    if !focused { inputText = "\(Int(v))" }
-                }
+            Slider(value: $draft, in: 90...400, step: 1, onEditingChanged: { editing in
+                if !editing { weightLbs = draft }
+            })
+            .tint(PlateStyle.green)
+            .onChange(of: draft) { _, v in
+                if !focused { inputText = "\(Int(v))" }
+            }
             HStack(spacing: 6) {
                 Text("or type:")
                     .font(.caption).foregroundStyle(.secondary)
-                TextField("\(Int(weightLbs))", text: $inputText)
+                TextField("\(Int(draft))", text: $inputText)
                     .keyboardType(.numberPad)
                     .focused($focused)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 65)
                     .onChange(of: inputText) { _, val in
-                        if let v = Double(val), (90...400).contains(v) { weightLbs = v }
+                        if let v = Double(val), (90...400).contains(v) {
+                            draft = v
+                            weightLbs = v
+                        }
                     }
                 Text("lbs")
                     .font(.caption).foregroundStyle(.secondary)
@@ -429,6 +453,5 @@ private struct WeightSlider: View {
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-        .onAppear { inputText = "\(Int(weightLbs))" }
     }
 }
