@@ -1,49 +1,34 @@
 import Foundation
+import Observation
+import os
 
-@MainActor
-final class DailyStore: ObservableObject {
-    @Published private(set) var goal: UserGoal?
-    @Published private(set) var logs: [LoggedMeal] = []
-    @Published private(set) var weightEntries: [WeightEntry] = []
-    @Published var hasCompletedOnboarding = false
+private let storeLog = Logger(subsystem: "BerkeleyPlate", category: "DailyStore")
 
-    private let goalKey = "userGoal_v1"
-    private let logsKey = "mealLogs_v1"
-    private let weightKey = "weightEntries_v1"
-    private let onboardingKey = "onboardingDone_v1"
+@Observable @MainActor
+final class DailyStore {
+    private(set) var goal: UserGoal?
+    private(set) var logs: [LoggedMeal] = []
+    private(set) var weightEntries: [WeightEntry] = []
+    private(set) var recurringFoods: [RecurringFood] = []
+    var hasCompletedOnboarding = false
+
+    // Cached streak — computed once on data change, not on every view render
+    private(set) var currentStreak: Int = 0
+
+    private let goalKey           = "userGoal_v1"
+    private let logsKey           = "mealLogs_v1"
+    private let weightKey         = "weightEntries_v1"
+    private let onboardingKey     = "onboardingDone_v1"
+    private let recurringFoodsKey = "recurringFoods_v1"
 
     init() { load() }
 
     var todayDate: String { BerkeleyClock.serviceDate() }
     var todayLogs: [LoggedMeal] { logs.filter { $0.date == todayDate } }
     var todayCalories: Double { todayLogs.reduce(0) { $0 + $1.macros.caloriesKcal } }
-    var todayProtein: Double { todayLogs.reduce(0) { $0 + $1.macros.proteinG } }
-    var todayCarbs: Double { todayLogs.reduce(0) { $0 + $1.macros.carbsG } }
-    var todayFat: Double { todayLogs.reduce(0) { $0 + $1.macros.fatG } }
-
-    // MARK: - Streak
-
-    var currentStreak: Int {
-        guard let goal = goal, goal.targetCalories > 0 else { return 0 }
-        let target = goal.targetCalories
-        let cal = BerkeleyClock.calendar
-        var date = cal.startOfDay(for: Date())
-        var streak = 0
-        for _ in 0..<365 {
-            let dateStr = BerkeleyClock.serviceDate(date)
-            let dayLogs = logsForDate(dateStr)
-            if dayLogs.isEmpty {
-                if cal.isDateInToday(date) {
-                    date = cal.date(byAdding: .day, value: -1, to: date) ?? date
-                    continue
-                } else { break }
-            }
-            let calories = dayLogs.reduce(0.0) { $0 + $1.macros.caloriesKcal }
-            if abs(calories - target) / target <= 0.05 { streak += 1 } else { break }
-            date = cal.date(byAdding: .day, value: -1, to: date) ?? date
-        }
-        return streak
-    }
+    var todayProtein: Double  { todayLogs.reduce(0) { $0 + $1.macros.proteinG } }
+    var todayCarbs: Double    { todayLogs.reduce(0) { $0 + $1.macros.carbsG } }
+    var todayFat: Double      { todayLogs.reduce(0) { $0 + $1.macros.fatG } }
 
     // MARK: - Weekly totals (rolling 7 days including today)
 
@@ -90,6 +75,7 @@ final class DailyStore: ObservableObject {
         )
         logs.append(meal)
         saveLogs()
+        updateStreak()
     }
 
     func logManualMeal(name: String, macros: Macros) {
@@ -100,11 +86,29 @@ final class DailyStore: ObservableObject {
         )
         logs.append(meal)
         saveLogs()
+        updateStreak()
     }
 
     func deleteLog(id: UUID) {
         logs.removeAll { $0.id == id }
         saveLogs()
+        updateStreak()
+    }
+
+    func updateLog(id: UUID, name: String, macros: Macros) {
+        guard let index = logs.firstIndex(where: { $0.id == id }) else { return }
+        let existing = logs[index]
+        logs[index] = LoggedMeal(
+            id: existing.id,
+            date: existing.date,
+            hallTitle: existing.hallTitle,
+            mealTitle: existing.mealTitle,
+            itemNames: [name],
+            macros: macros,
+            loggedAt: existing.loggedAt
+        )
+        saveLogs()
+        updateStreak()
     }
 
     func logWeight(_ weightLbs: Double) {
@@ -118,12 +122,26 @@ final class DailyStore: ObservableObject {
         saveWeights()
     }
 
+    func updateWeightEntry(id: UUID, weightLbs: Double) {
+        guard let idx = weightEntries.firstIndex(where: { $0.id == id }) else { return }
+        let existing = weightEntries[idx]
+        weightEntries[idx] = WeightEntry(id: existing.id, date: existing.date,
+                                         weightLbs: weightLbs, loggedAt: existing.loggedAt)
+        saveWeights()
+    }
+
     func saveGoal(_ goal: UserGoal) {
+        let t0 = Date()
         self.goal = goal
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: onboardingKey)
-        if let data = try? JSONCoding.encoder().encode(goal) {
-            UserDefaults.standard.set(data, forKey: goalKey)
+        updateStreak()
+        storeLog.debug("saveGoal completed in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
+        let key = goalKey
+        Task.detached(priority: .utility) {
+            if let data = try? JSONCoding.encoder().encode(goal) {
+                UserDefaults.standard.set(data, forKey: key)
+            }
         }
     }
 
@@ -152,6 +170,52 @@ final class DailyStore: ObservableObject {
         logsForDate(date).reduce(0) { $0 + $1.macros.fatG }
     }
 
+    // MARK: - Recurring Foods
+
+    func addRecurringFood(_ food: RecurringFood) {
+        recurringFoods.append(food)
+        saveRecurringFoods()
+    }
+
+    func updateRecurringFood(_ food: RecurringFood) {
+        guard let idx = recurringFoods.firstIndex(where: { $0.id == food.id }) else { return }
+        recurringFoods[idx] = food
+        saveRecurringFoods()
+    }
+
+    func deleteRecurringFood(id: UUID) {
+        recurringFoods.removeAll { $0.id == id }
+        saveRecurringFoods()
+    }
+
+    // MARK: - Streak (cached — O(365) runs once per data change, not per render)
+
+    private func updateStreak() {
+        let t0 = Date()
+        guard let goal, goal.targetCalories > 0 else { currentStreak = 0; return }
+        let target = goal.targetCalories
+        let cal = BerkeleyClock.calendar  // single reference; loop below uses this, not serviceDate()
+        var date = cal.startOfDay(for: Date())
+        var streak = 0
+        for _ in 0..<365 {
+            // Format inline to avoid creating a Calendar copy per iteration via serviceDate()
+            let parts = cal.dateComponents([.year, .month, .day], from: date)
+            let dateStr = String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
+            let dayLogs = logsForDate(dateStr)
+            if dayLogs.isEmpty {
+                if cal.isDateInToday(date) {
+                    date = cal.date(byAdding: .day, value: -1, to: date) ?? date
+                    continue
+                } else { break }
+            }
+            let calories = dayLogs.reduce(0.0) { $0 + $1.macros.caloriesKcal }
+            if abs(calories - target) / target <= 0.05 { streak += 1 } else { break }
+            date = cal.date(byAdding: .day, value: -1, to: date) ?? date
+        }
+        currentStreak = streak
+        storeLog.debug("updateStreak=\(streak) in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
+    }
+
     private func load() {
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: onboardingKey)
         if let data = UserDefaults.standard.data(forKey: goalKey),
@@ -166,17 +230,40 @@ final class DailyStore: ObservableObject {
            let saved = try? JSONCoding.decoder().decode([WeightEntry].self, from: data) {
             weightEntries = saved
         }
+        if let data = UserDefaults.standard.data(forKey: recurringFoodsKey),
+           let saved = try? JSONCoding.decoder().decode([RecurringFood].self, from: data) {
+            recurringFoods = saved
+        }
+        updateStreak()
     }
 
     private func saveLogs() {
-        if let data = try? JSONCoding.encoder().encode(logs) {
-            UserDefaults.standard.set(data, forKey: logsKey)
+        let snapshot = logs
+        let key = logsKey
+        Task.detached(priority: .utility) {
+            if let data = try? JSONCoding.encoder().encode(snapshot) {
+                UserDefaults.standard.set(data, forKey: key)
+            }
         }
     }
 
     private func saveWeights() {
-        if let data = try? JSONCoding.encoder().encode(weightEntries) {
-            UserDefaults.standard.set(data, forKey: weightKey)
+        let snapshot = weightEntries
+        let key = weightKey
+        Task.detached(priority: .utility) {
+            if let data = try? JSONCoding.encoder().encode(snapshot) {
+                UserDefaults.standard.set(data, forKey: key)
+            }
+        }
+    }
+
+    private func saveRecurringFoods() {
+        let snapshot = recurringFoods
+        let key = recurringFoodsKey
+        Task.detached(priority: .utility) {
+            if let data = try? JSONCoding.encoder().encode(snapshot) {
+                UserDefaults.standard.set(data, forKey: key)
+            }
         }
     }
 }

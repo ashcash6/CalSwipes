@@ -84,6 +84,10 @@ struct UserGoal: Codable {
     var manualCarbsG: Double? = nil
     var manualFatG: Double? = nil
 
+    // Dietary profile — strings match backend KNOWN_ALLERGENS / KNOWN_DIETARY
+    var allergens: [String] = []
+    var dietaryTags: [String] = []
+
     var isManualMode: Bool { manualCalories != nil }
 
     private var weightKg: Double { weightLbs * 0.453592 }
@@ -118,6 +122,66 @@ struct UserGoal: Codable {
     var targetProteinG: Double { manualProteinG ?? computedProteinG }
     var targetCarbsG: Double   { manualCarbsG   ?? computedCarbsG   }
     var targetFatG: Double     { manualFatG     ?? computedFatG     }
+}
+
+// Match backend KNOWN_ALLERGENS frozenset
+let knownAllergens: [String] = [
+    "Gluten", "Milk", "Egg", "Fish", "Shellfish",
+    "Tree Nuts", "Peanuts", "Soybeans", "Sesame", "Wheat", "Pork", "Alcohol"
+]
+
+// Display names for dietary tags (shorter than backend values)
+let knownDietaryTags: [String] = [
+    "Vegetarian", "Vegan", "Halal", "Kosher"
+]
+
+// Maps stored dietary tag names → backend MenuItem.dietaryTags values for menu filtering
+let dietaryTagToBackend: [String: String] = [
+    "Vegetarian": "Vegetarian Option",
+    "Vegan": "Vegan Option",
+]
+
+// MARK: - Recurring Food
+
+/// A food the user regularly eats that is not from the dining-hall menu (e.g. protein shake, bar).
+/// Stored persistently in DailyStore. Serves as the standing default across all plan days.
+struct RecurringFood: Codable, Identifiable {
+    let id: UUID
+    var name: String
+    var calories: Double
+    var proteinG: Double
+    var carbsG: Double
+    var fatG: Double
+    var servingDescription: String  // "1 shake (360 ml)"
+    var typicalMeal: Meal?          // optional display hint — does not restrict when it appears
+    var defaultEnabled: Bool        // pre-toggled ON when creating a new plan
+
+    var planMacros: PlanMacros {
+        PlanMacros(caloriesKcal: calories, proteinG: proteinG, carbsG: carbsG, fatG: fatG)
+    }
+}
+
+// MARK: - Daily Snack Override
+
+/// Per-day deviation from a recurring food's default for one specific plan day.
+/// `foodId` links back to `RecurringFood.id`. A nil macro field means "use the recurring default".
+struct DailySnackOverride: Codable {
+    let foodId: UUID
+    var isEnabled: Bool
+    var caloriesOverride: Double?
+    var proteinGOverride: Double?
+    var carbsGOverride: Double?
+    var fatGOverride: Double?
+
+    func effectiveMacros(food: RecurringFood) -> PlanMacros {
+        guard isEnabled else { return .zero }
+        return PlanMacros(
+            caloriesKcal: caloriesOverride ?? food.calories,
+            proteinG:     proteinGOverride ?? food.proteinG,
+            carbsG:       carbsGOverride   ?? food.carbsG,
+            fatG:         fatGOverride     ?? food.fatG
+        )
+    }
 }
 
 struct LoggedMeal: Codable, Identifiable {

@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let menuLog = Logger(subsystem: "BerkeleyPlate", category: "MenuScreen")
 
 enum PlateStyle {
     static let green = Color(uiColor: UIColor { traits in
@@ -14,17 +17,37 @@ enum PlateStyle {
 }
 
 struct MenuScreen: View {
-    @ObservedObject var store: AppStore
-    @ObservedObject var daily: DailyStore
+    var store: AppStore
+    var daily: DailyStore
     let simulator: Bool
     @State private var aboutPresented = false
     @State private var search = ""
     @State private var scanRequest: ScanRequest?
 
-    private var filteredItems: [MenuItem] {
-        let items = store.menu?.items ?? []
-        return items.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    private func dietaryFiltered(_ items: [MenuItem]) -> [MenuItem] {
+        guard let goal = daily.goal,
+              !goal.allergens.isEmpty || !goal.dietaryTags.isEmpty else { return items }
+        let blocked = Set(goal.allergens)
+        let required = Set(goal.dietaryTags.map { dietaryTagToBackend[$0] ?? $0 })
+        return items.filter { item in
+            if !blocked.isEmpty, !blocked.isDisjoint(with: Set(item.allergens)) { return false }
+            if !required.isEmpty, !required.isSubset(of: Set(item.dietaryTags)) { return false }
+            return true
+        }
+    }
+
+    // Tier 1 = protein-first, Tier 2 = carb-first, Tier 3 = condiments/desserts/drinks
+    private func menuSortTier(_ item: MenuItem) -> Int {
+        let cats = item.categories.map { $0.lowercased() }.joined(separator: " ")
+        if cats.contains("dessert") || cats.contains("pastry") || cats.contains("bakery")
+            || cats.contains("sweet") || cats.contains("cake") || cats.contains("cookie")
+            || cats.contains("sauce") || cats.contains("dressing") || cats.contains("condiment")
+            || cats.contains("beverage") || cats.contains("drink") || cats.contains("juice") {
+            return 3
+        }
+        let protein = item.macros?.proteinG ?? 0
+        let carbs   = item.macros?.carbsG   ?? 0
+        return protein >= carbs ? 1 : 2
     }
 
     var body: some View {
@@ -41,16 +64,17 @@ struct MenuScreen: View {
                         Label("Simulator preview · camera support is unverified", systemImage: "desktopcomputer")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    if store.isLoading {
+                    if store.isLoading && store.menu == nil {
+                        // First load — nothing to show yet
                         ProgressView("Getting your menu…").frame(maxWidth: .infinity).padding(40)
-                    } else if let error = store.menuError {
-                        ContentUnavailableView {
-                            Label("Menu unavailable", systemImage: "wifi.exclamationmark")
-                        } description: { Text(error) } actions: {
-                            Button("Try again") { Task { await store.loadMenu() } }
-                                .buttonStyle(.borderedProminent)
-                        }
                     } else if let menu = store.menu {
+                        // Subsequent loads: keep old content visible and show a subtle refresh indicator
+                        if store.isLoading {
+                            HStack(spacing: 6) {
+                                ProgressView().scaleEffect(0.75)
+                                Text("Refreshing…").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                         TimelineView(.periodic(from: .now, by: 30)) { context in
                             if menu.isFresh(at: context.date) {
                                 menuContents(menu)
@@ -58,6 +82,13 @@ struct MenuScreen: View {
                                 ContentUnavailableView("Downloaded menu expired", systemImage: "clock.badge.exclamationmark",
                                     description: Text("Pull to refresh before using this menu."))
                             }
+                        }
+                    } else if let error = store.menuError {
+                        ContentUnavailableView {
+                            Label("Menu unavailable", systemImage: "wifi.exclamationmark")
+                        } description: { Text(error) } actions: {
+                            Button("Try again") { Task { await store.loadMenu() } }
+                                .buttonStyle(.borderedProminent)
                         }
                     }
                 }
@@ -74,7 +105,8 @@ struct MenuScreen: View {
             }
             .searchable(text: $search, prompt: "Find a menu item")
             .refreshable { await store.loadMenu() }
-            .task(id: store.key) {
+            .task(id: store.menuLoadTrigger) {
+                menuLog.info("task(id: menuLoadTrigger) fired — key=\(self.store.key.cacheName) mealValidated=\(self.store.mealValidated) version=\(self.store.loadVersion)")
                 guard store.mealValidated else { return }
                 search = ""
                 await store.loadMenu()
@@ -129,6 +161,26 @@ struct MenuScreen: View {
 
     @ViewBuilder
     private func menuContents(_ menu: MenuEnvelope) -> some View {
+        // Compute filtering + sort ONCE per render. Previously filteredItems and
+        // dietaryHiddenCount were separate computed properties each calling dietaryFiltered,
+        // and filteredItems was referenced 4–5 times per render (re-running each time).
+        let t0 = Date()
+        let allItems = menu.items
+        let dietaryItems = dietaryFiltered(allItems)
+        let hiddenCount = allItems.count - dietaryItems.count
+        // Pre-compute tier per item so the sort comparator doesn't recompute it O(n log n) times
+        let tiered = (search.isEmpty ? dietaryItems : dietaryItems.filter { $0.name.localizedCaseInsensitiveContains(search) })
+            .map { ($0, menuSortTier($0)) }
+        let items = tiered.sorted { a, b in
+            if a.1 != b.1 { return a.1 < b.1 }
+            switch a.1 {
+            case 1:  return (a.0.macros?.proteinG ?? 0) > (b.0.macros?.proteinG ?? 0)
+            case 2:  return (a.0.macros?.carbsG   ?? 0) > (b.0.macros?.carbsG   ?? 0)
+            default: return a.0.name.localizedStandardCompare(b.0.name) == .orderedAscending
+            }
+        }.map(\.0)
+        let _ = menuLog.debug("menuContents: \(allItems.count) total → \(dietaryItems.count) dietary → \(items.count) final in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 2))ms (hidden=\(hiddenCount))")
+
         if store.isOffline {
             Label("Offline · using your downloaded menu", systemImage: "wifi.slash")
                 .font(.subheadline).foregroundStyle(PlateStyle.green)
@@ -152,12 +204,25 @@ struct MenuScreen: View {
             .buttonStyle(.borderedProminent)
             Text("Take a photo — your iPhone identifies foods automatically. Values are per published serving.")
                 .font(.caption).foregroundStyle(.secondary)
-            Text("\(menu.items.count) menu items").font(.headline)
-            if filteredItems.isEmpty {
-                ContentUnavailableView.search(text: search)
+            if hiddenCount > 0 {
+                Label(
+                    "\(hiddenCount) item\(hiddenCount == 1 ? "" : "s") hidden for your dietary restrictions",
+                    systemImage: "line.3.horizontal.decrease.circle.fill"
+                )
+                .font(.subheadline)
+                .foregroundStyle(PlateStyle.green)
             }
-            ForEach(filteredItems) { item in
-                MenuItemCard(item: item)
+            Text("\(items.count) menu items").font(.headline)
+            if items.isEmpty && !search.isEmpty {
+                ContentUnavailableView.search(text: search)
+            } else if items.isEmpty {
+                ContentUnavailableView("No matching items", systemImage: "fork.knife.circle",
+                    description: Text("All items are hidden by your dietary restrictions."))
+            }
+            if !items.isEmpty {
+                ForEach(items) { item in
+                    MenuItemCard(item: item)
+                }
             }
             Text("A listed serving is a reference amount, not a measurement of your plate. Nutrition values are estimates.")
                 .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
@@ -176,10 +241,7 @@ struct MenuItemCard: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let macros = item.macros {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 16) { macroLabels(macros) }
-                    VStack(alignment: .leading, spacing: 8) { macroLabels(macros) }
-                }
+                HStack(spacing: 0) { macroLabels(macros) }
             } else {
                 Text("Nutrition not available").font(.subheadline).foregroundStyle(.secondary)
             }
@@ -203,12 +265,16 @@ struct MenuItemCard: View {
     private func macroLabels(_ macros: Macros) -> some View {
         Text("\(macros.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
             .font(.subheadline.weight(.semibold)).foregroundStyle(PlateStyle.green)
+            .frame(maxWidth: .infinity, alignment: .leading)
         Text("P \(macros.proteinG.formatted(.number.precision(.fractionLength(0...1)))) g")
             .font(.caption).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
         Text("C \(macros.carbsG.formatted(.number.precision(.fractionLength(0...1)))) g")
             .font(.caption).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
         Text("F \(macros.fatG.formatted(.number.precision(.fractionLength(0...1)))) g")
             .font(.caption).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 

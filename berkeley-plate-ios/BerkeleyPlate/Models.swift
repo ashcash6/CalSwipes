@@ -55,17 +55,24 @@ struct MenuKey: Hashable {
 }
 
 enum BerkeleyClock {
-    static var calendar: Calendar {
-        var result = Calendar(identifier: .gregorian)
-        result.timeZone = TimeZone(identifier: "America/Los_Angeles")!
-        return result
-    }
+    // Static let: Calendar is constructed once at first access, never again.
+    // Previously a computed `var`, which allocated a new Calendar on every call.
+    static let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        return c
+    }()
     static func serviceDate(_ instant: Date = Date()) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: instant)
+        let hour = calendar.component(.hour, from: instant)
+        let date = hour >= 22
+            ? calendar.date(byAdding: .day, value: 1, to: instant)!
+            : instant
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
     }
     static func suggestedMeal(_ instant: Date = Date()) -> Meal {
         let hour = calendar.component(.hour, from: instant)
+        if hour >= 22 { return .breakfast }  // showing next day after 10 PM
         let minute = calendar.component(.minute, from: instant)
         if hour >= 7 && hour < 11 { return .breakfast }
         if hour >= 11 && (hour < 16 || (hour == 16 && minute < 30)) { return .lunch }

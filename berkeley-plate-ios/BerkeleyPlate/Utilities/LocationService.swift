@@ -1,5 +1,8 @@
 import CoreLocation
 import Foundation
+import os
+
+private let locLog = Logger(subsystem: "BerkeleyPlate", category: "Location")
 
 /// Detects the nearest Berkeley dining hall using a one-shot location fix.
 /// Defaults to nil (caller uses Crossroads) when location is unavailable,
@@ -22,16 +25,23 @@ final class LocationService: NSObject {
     private static let detectionRadius: CLLocationDistance = 350
 
     func nearestHall() async -> Hall? {
-        await withTaskGroup(of: Hall?.self) { group in
+        let t0 = Date()
+        locLog.info("nearestHall() started")
+        let result = await withTaskGroup(of: Hall?.self) { group in
             group.addTask { await self.locateHall() }
+            // 2-second timeout: dining-hall proximity doesn't need a fresh GPS fix;
+            // if a cached location isn't available within 2s, fall back to default hall.
             group.addTask {
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(2))
+                locLog.info("nearestHall() timeout fired after 2s")
                 return nil
             }
-            let result = await group.next() ?? nil
+            let r = await group.next() ?? nil
             group.cancelAll()
-            return result
+            return r
         }
+        locLog.info("nearestHall() → \(result.map(\.rawValue) ?? "nil") in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 0))ms")
+        return result
     }
 
     private func locateHall() async -> Hall? {

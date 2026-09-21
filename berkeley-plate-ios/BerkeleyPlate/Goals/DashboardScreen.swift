@@ -1,13 +1,16 @@
 import SwiftUI
 
 struct DashboardScreen: View {
-    @ObservedObject var store: AppStore
-    @ObservedObject var daily: DailyStore
+    var store: AppStore
+    var daily: DailyStore
     @State private var scanRequest: ScanRequest?
     @State private var showGoalSheet = false
+    @State private var showDietarySheet = false
+    @State private var showRecurringFoods = false
     @State private var showHistory = false
     @State private var showLabelScan = false
     @State private var showManualEntry = false
+    @State private var editingMeal: LoggedMeal?
 
     var body: some View {
         NavigationStack {
@@ -25,14 +28,38 @@ struct DashboardScreen: View {
             .navigationTitle("Today")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showDietarySheet = true
+                    } label: {
+                        let hasRestrictions = !(daily.goal?.allergens.isEmpty ?? true)
+                            || !(daily.goal?.dietaryTags.isEmpty ?? true)
+                        Image(systemName: hasRestrictions ? "fork.knife.circle.fill" : "fork.knife.circle")
+                    }
+                    .accessibilityLabel("Dietary restrictions")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit") { showGoalSheet = true }
-                        .fontWeight(.medium)
+                    HStack(spacing: 4) {
+                        Button {
+                            showRecurringFoods = true
+                        } label: {
+                            Image(systemName: "repeat.circle")
+                        }
+                        .accessibilityLabel("Recurring foods")
+                        Button("Edit") { showGoalSheet = true }
+                            .fontWeight(.medium)
+                    }
                 }
             }
         }
         .sheet(isPresented: $showGoalSheet) {
             OnboardingScreen(store: daily, editMode: true)
+        }
+        .sheet(isPresented: $showDietarySheet) {
+            DietaryRestrictionsScreen(store: daily)
+        }
+        .sheet(isPresented: $showRecurringFoods) {
+            RecurringFoodsScreen(daily: daily)
         }
         .sheet(isPresented: $showHistory) {
             CalorieHistoryScreen(daily: daily)
@@ -49,6 +76,11 @@ struct DashboardScreen: View {
         }
         .sheet(isPresented: $showManualEntry) {
             ManualMealEntryScreen(store: daily)
+        }
+        .sheet(item: $editingMeal) { meal in
+            EditMealSheet(meal: meal) { name, macros in
+                daily.updateLog(id: meal.id, name: name, macros: macros)
+            }
         }
     }
 
@@ -176,9 +208,11 @@ struct DashboardScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Today's meals").font(.headline)
             ForEach(daily.todayLogs) { meal in
-                LoggedMealRow(meal: meal) {
-                    withAnimation { daily.deleteLog(id: meal.id) }
-                }
+                LoggedMealRow(
+                    meal: meal,
+                    onEdit: { editingMeal = meal },
+                    onDelete: { withAnimation { daily.deleteLog(id: meal.id) } }
+                )
             }
         }
     }
@@ -497,6 +531,7 @@ private struct MacroBar: View {
 
 private struct LoggedMealRow: View {
     let meal: LoggedMeal
+    let onEdit: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -510,14 +545,118 @@ private struct LoggedMealRow: View {
                     .font(.caption.weight(.semibold)).foregroundStyle(PlateStyle.green)
             }
             Spacer()
-            Button(action: onDelete) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary).font(.title3)
+            HStack(spacing: 10) {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil.circle.fill")
+                        .foregroundStyle(.secondary).font(.title3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit meal")
+
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary).font(.title3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove meal")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove meal")
         }
         .padding(14)
         .background(.background, in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+// MARK: - Edit Meal Sheet
+
+private struct EditMealSheet: View {
+    let meal: LoggedMeal
+    let onSave: (String, Macros) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name: String
+    @State private var caloriesText: String
+    @State private var proteinText: String
+    @State private var carbsText: String
+    @State private var fatText: String
+
+    init(meal: LoggedMeal, onSave: @escaping (String, Macros) -> Void) {
+        self.meal = meal
+        self.onSave = onSave
+        _name = State(initialValue: meal.itemNames.first ?? "")
+        let m = meal.macros
+        _caloriesText = State(initialValue: m.caloriesKcal > 0 ? String(Int(m.caloriesKcal)) : "")
+        _proteinText  = State(initialValue: m.proteinG > 0    ? String(Int(m.proteinG))    : "")
+        _carbsText    = State(initialValue: m.carbsG > 0      ? String(Int(m.carbsG))      : "")
+        _fatText      = State(initialValue: m.fatG > 0        ? String(Int(m.fatG))        : "")
+    }
+
+    private func parseRequired(_ s: String) -> Double? {
+        Double(s.replacingOccurrences(of: ",", with: ".")).flatMap { $0 > 0 ? $0 : nil }
+    }
+    private func parseOptional(_ s: String) -> Double {
+        Double(s.replacingOccurrences(of: ",", with: ".")).map { max(0, $0) } ?? 0
+    }
+    private var canSave: Bool { parseRequired(caloriesText) != nil }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent("Name") {
+                        TextField("Optional", text: $name)
+                            .multilineTextAlignment(.trailing)
+                    }
+                } header: { Text("Meal") }
+
+                Section {
+                    LabeledContent("Calories (kcal)") {
+                        TextField("Required", text: $caloriesText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Protein (g)") {
+                        TextField("Optional", text: $proteinText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Carbs (g)") {
+                        TextField("Optional", text: $carbsText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Fat (g)") {
+                        TextField("Optional", text: $fatText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                } header: {
+                    Text("Nutrition")
+                } footer: {
+                    Text("Calories are required. All other fields are optional.")
+                }
+            }
+            .navigationTitle("Edit meal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard let kcal = parseRequired(caloriesText) else { return }
+                        let trimmed = name.trimmingCharacters(in: .whitespaces)
+                        let finalName = trimmed.isEmpty ? (meal.itemNames.first ?? "Manual entry") : trimmed
+                        onSave(finalName, Macros(
+                            caloriesKcal: kcal,
+                            proteinG: parseOptional(proteinText),
+                            carbsG: parseOptional(carbsText),
+                            fatG: parseOptional(fatText)
+                        ))
+                        dismiss()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+        }
     }
 }

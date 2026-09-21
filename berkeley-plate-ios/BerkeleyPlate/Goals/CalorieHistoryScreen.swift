@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CalorieHistoryScreen: View {
-    @ObservedObject var daily: DailyStore
+    var daily: DailyStore
     @Environment(\.dismiss) private var dismiss
 
     // 12 pages: index 0 = 11 months ago, index 11 = current month
@@ -54,7 +54,7 @@ struct CalorieHistoryScreen: View {
 
 private struct MonthCalendarPage: View {
     let monthOffset: Int
-    @ObservedObject var daily: DailyStore
+    var daily: DailyStore
     @Binding var selectedDate: String?
 
     private var cal: Calendar { BerkeleyClock.calendar }
@@ -142,7 +142,7 @@ private struct DayInfo: Identifiable {
 
 private struct DayCellView: View {
     let info: DayInfo
-    @ObservedObject var daily: DailyStore
+    var daily: DailyStore
     @Binding var selectedDate: String?
 
     private var calories: Double {
@@ -215,7 +215,7 @@ private struct DayCellView: View {
 
 private struct DayDetailPanel: View {
     let date: String
-    @ObservedObject var daily: DailyStore
+    var daily: DailyStore
 
     private var displayDate: String {
         let fmt = DateFormatter()

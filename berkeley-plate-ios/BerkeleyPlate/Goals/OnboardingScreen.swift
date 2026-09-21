@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OnboardingScreen: View {
-    @ObservedObject var store: DailyStore
+    var store: DailyStore
     var editMode: Bool = false
     @Environment(\.dismiss) private var dismiss
 
@@ -12,9 +12,28 @@ struct OnboardingScreen: View {
     @State private var heightIn: Double
     @State private var weightLbs: Double
     @State private var activityLevel: ActivityLevel
+    @State private var allergens: Set<String>
+    @State private var dietaryTags: Set<String>
+
+    // Recurring foods step (step 5, initial setup only)
+    @State private var recurringPresets: [RecurringFood] = OnboardingScreen.defaultPresets
+    @State private var enabledPresetIds: Set<UUID> = []
+    @State private var editingPreset: RecurringFood?
+
+    static let defaultPresets: [RecurringFood] = [
+        RecurringFood(id: UUID(), name: "Protein Shake", calories: 160, proteinG: 30,
+                      carbsG: 8, fatG: 3, servingDescription: "1 shake",
+                      typicalMeal: .breakfast, defaultEnabled: true),
+        RecurringFood(id: UUID(), name: "Protein Bar", calories: 200, proteinG: 20,
+                      carbsG: 22, fatG: 7, servingDescription: "1 bar",
+                      typicalMeal: nil, defaultEnabled: true),
+        RecurringFood(id: UUID(), name: "Greek Yogurt", calories: 130, proteinG: 17,
+                      carbsG: 9, fatG: 4, servingDescription: "1 cup (227g)",
+                      typicalMeal: .breakfast, defaultEnabled: true),
+    ]
 
     init(store: DailyStore, editMode: Bool = false) {
-        self._store = ObservedObject(wrappedValue: store)
+        self.store = store
         self.editMode = editMode
         let goal = store.goal
         self._step = State(initialValue: 0)
@@ -23,6 +42,8 @@ struct OnboardingScreen: View {
         self._heightIn = State(initialValue: goal?.heightIn ?? 68)
         self._weightLbs = State(initialValue: goal?.weightLbs ?? 160)
         self._activityLevel = State(initialValue: goal?.activityLevel ?? .moderate)
+        self._allergens = State(initialValue: Set(goal?.allergens ?? []))
+        self._dietaryTags = State(initialValue: Set(goal?.dietaryTags ?? []))
     }
 
     private var skipsPace: Bool { goalType == .maintain }
@@ -66,6 +87,13 @@ struct OnboardingScreen: View {
             }
         }
         .tint(PlateStyle.green)
+        .sheet(item: $editingPreset) { preset in
+            EditRecurringFoodSheet(food: preset) { updated in
+                if let idx = recurringPresets.firstIndex(where: { $0.id == preset.id }) {
+                    recurringPresets[idx] = updated
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -95,25 +123,117 @@ struct OnboardingScreen: View {
                 HeightSlider(heightIn: $heightIn)
                 WeightSlider(weightLbs: $weightLbs)
             } next: { goForward() }
-        default:
+        case 3:
             OnboardingStepView(title: "Activity level",
-                               subtitle: "How active are you on a typical week?",
-                               nextLabel: "Set my goals") {
+                               subtitle: "How active are you on a typical week?") {
                 ForEach(ActivityLevel.allCases) { level in
                     SelectionRow(title: level.title, subtitle: level.subtitle,
                                  selected: activityLevel == level) { activityLevel = level }
                 }
+            } next: { goForward() }
+        case 4:
+            OnboardingStepView(title: "Dietary preferences",
+                               subtitle: "We'll highlight allergens and tags on menu items.",
+                               nextLabel: editMode ? "Save" : "Continue") {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Allergens")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        DietaryChipGrid(items: knownAllergens, selection: $allergens)
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Dietary preferences")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        DietaryChipGrid(items: knownDietaryTags, selection: $dietaryTags)
+                    }
+                }
+            } next: {
+                if editMode {
+                    store.saveGoal(UserGoal(goalType: goalType, pace: pace,
+                                           heightIn: heightIn, weightLbs: weightLbs,
+                                           activityLevel: activityLevel,
+                                           allergens: allergens.sorted(),
+                                           dietaryTags: dietaryTags.sorted()))
+                    dismiss()
+                } else {
+                    goForward()
+                }
+            }
+        default:
+            // Step 5 — recurring foods (initial setup only)
+            OnboardingStepView(title: "Protein snacks",
+                               subtitle: "Foods you eat every day. Their calories are automatically deducted from your meal plan budget.",
+                               nextLabel: "Finish setup") {
+                VStack(spacing: 10) {
+                    ForEach(recurringPresets) { preset in
+                        let isEnabled = enabledPresetIds.contains(preset.id)
+                        Button {
+                            if isEnabled { enabledPresetIds.remove(preset.id) }
+                            else         { enabledPresetIds.insert(preset.id) }
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: isEnabled ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(isEnabled ? PlateStyle.green : .secondary)
+                                    .frame(width: 32, alignment: .center)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(preset.name)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                    Text("\(Int(preset.calories)) kcal · \(Int(preset.proteinG))g protein · \(preset.servingDescription)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button { editingPreset = preset } label: {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(16)
+                            .background(
+                                isEnabled
+                                    ? PlateStyle.green.opacity(0.08)
+                                    : Color(uiColor: .secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 16)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(isEnabled ? PlateStyle.green : .clear, lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Text("You can always add or edit these in Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                }
             } next: {
                 store.saveGoal(UserGoal(goalType: goalType, pace: pace,
                                        heightIn: heightIn, weightLbs: weightLbs,
-                                       activityLevel: activityLevel))
-                if editMode { dismiss() }
+                                       activityLevel: activityLevel,
+                                       allergens: allergens.sorted(),
+                                       dietaryTags: dietaryTags.sorted()))
+                let existingNames = Set(store.recurringFoods.map(\.name))
+                for preset in recurringPresets where enabledPresetIds.contains(preset.id) {
+                    if !existingNames.contains(preset.name) {
+                        store.addRecurringFood(preset)
+                    }
+                }
+                // hasCompletedOnboarding = true → parent view dismisses automatically
             }
         }
     }
 
     private var stepDots: some View {
-        let count = skipsPace ? 3 : 4
+        let baseCount = skipsPace ? 4 : 5
+        let count = editMode ? baseCount : baseCount + 1
         let current: Int = {
             if skipsPace { return step == 0 ? 0 : step - 1 }
             return step

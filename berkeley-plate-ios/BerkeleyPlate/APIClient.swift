@@ -29,7 +29,8 @@ actor APIClient {
         self.session = session
     }
 
-    func send(path: String, query: [URLQueryItem] = [], etag: String? = nil) async throws -> HTTPResult {
+    func send(path: String, query: [URLQueryItem] = [], etag: String? = nil,
+              timeout: TimeInterval = 20, token: String? = nil) async throws -> HTTPResult {
         guard baseURL.scheme == "https", let host = baseURL.host,
               !host.hasSuffix(".invalid"), baseURL.user == nil, baseURL.password == nil else {
             throw APIError.configuration
@@ -40,9 +41,10 @@ actor APIClient {
         var components = URLComponents(url: withPath, resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
         guard let url = components.url else { throw APIError.configuration }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) || http.statusCode == 304 else {
@@ -55,7 +57,7 @@ actor APIClient {
         return HTTPResult(data: data, response: http)
     }
 
-    func post<Body: Encodable>(path: String, body: Body) async throws -> HTTPResult {
+    func post<Body: Encodable>(path: String, body: Body, token: String? = nil) async throws -> HTTPResult {
         guard baseURL.scheme == "https", let host = baseURL.host,
               !host.hasSuffix(".invalid"), baseURL.user == nil, baseURL.password == nil else {
             throw APIError.configuration
@@ -66,6 +68,7 @@ actor APIClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.httpBody = try JSONCoding.encoder().encode(body)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }

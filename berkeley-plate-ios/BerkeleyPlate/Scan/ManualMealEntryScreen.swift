@@ -23,8 +23,7 @@ struct ManualMealEntryScreen: View {
     }
 
     private var canLog: Bool {
-        !mealName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        [caloriesText, proteinText, carbsText, fatText].allSatisfy { parsePositive($0) != nil }
+        parsePositive(caloriesText) != nil
     }
 
     var body: some View {
@@ -35,14 +34,14 @@ struct ManualMealEntryScreen: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Log a meal")
                                 .font(.system(.title, design: .serif, weight: .semibold))
-                            Text("Enter the name and nutrition info from the package or your memory.")
+                            Text("Enter calories to log your meal. Name, protein, carbs, and fat are optional.")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                         .padding(.top, 8)
 
                         // Meal name
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Meal name").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            Text("Meal name (optional)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                             TextField("e.g. David Bar, Greek Yogurt…", text: $mealName)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.body)
@@ -96,7 +95,7 @@ struct ManualMealEntryScreen: View {
                 }
 
                 if activeField != nil {
-                    EntryNumpad(canLog: canLog && !mealName.trimmingCharacters(in: .whitespaces).isEmpty,
+                    EntryNumpad(canLog: canLog,
                                 onKey: handleKey,
                                 onDone: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { activeField = nil } },
                                 onLog: logTapped)
@@ -158,14 +157,14 @@ struct ManualMealEntryScreen: View {
     }
 
     private func logTapped() {
-        guard canLog,
-              let kcal = parsePositive(caloriesText),
-              let prot = parsePositive(proteinText),
-              let carb = parsePositive(carbsText),
-              let fat  = parsePositive(fatText) else { return }
+        guard let kcal = parsePositive(caloriesText) else { return }
+        let prot = parsePositive(proteinText) ?? 0
+        let carb = parsePositive(carbsText) ?? 0
+        let fat  = parsePositive(fatText) ?? 0
+        let name = mealName.trimmingCharacters(in: .whitespaces)
         let macros = Macros(caloriesKcal: kcal, proteinG: prot, carbsG: carb, fatG: fat)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        store.logManualMeal(name: mealName.trimmingCharacters(in: .whitespaces), macros: macros)
+        store.logManualMeal(name: name.isEmpty ? "Manual entry" : name, macros: macros)
         withAnimation { logged = true }
         activeField = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { dismiss() }

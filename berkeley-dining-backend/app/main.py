@@ -13,11 +13,10 @@ from app.config import Settings
 from app.db import MenuSnapshot, make_engine
 from app.importer import canonical_hash
 from app.schemas import ALLOWED_SCAN_MIME_TYPES, MAX_PHOTO_BYTES, Hall, Meal, MenuResponse, ScanMealRequest, ScanMealResponse
-from app.auth import router as auth_router
 from app import vision
 
 
-def create_app(settings=None, engine=None, apple_verifier=None):
+def create_app(settings=None, engine=None):
     settings = settings or Settings.from_env()
     owned = engine is None
     engine = engine or make_engine(settings.database_url)
@@ -28,15 +27,7 @@ def create_app(settings=None, engine=None, apple_verifier=None):
         if owned:
             engine.dispose()
 
-    app = FastAPI(title="Berkeley Dining Menu API", version="1.1.0", lifespan=lifespan)
-    app.include_router(auth_router(settings, engine, apple_verifier))
-
-    @app.middleware("http")
-    async def private_auth_responses(request, call_next):
-        response = await call_next(request)
-        if request.url.path.startswith("/v1/auth/"):
-            response.headers["Cache-Control"] = "no-store"
-        return response
+    app = FastAPI(title="Berkeley Dining Menu API", version="1.2.0", lifespan=lifespan)
 
     def error(code, message, status):
         return JSONResponse({"error": {"code": code, "message": message}}, status_code=status,
@@ -121,7 +112,6 @@ def create_app(settings=None, engine=None, apple_verifier=None):
         if snapshot is None:
             return error("menu_unavailable", "No menu found for this hall/date/meal", 404)
 
-        # Only pass items that have published macros — those are the only ones we can scale
         all_items = snapshot.content.get("items", [])
         scannable = [{"id": i["id"], "name": i["name"]} for i in all_items if i.get("macros")]
         if not scannable:
@@ -146,7 +136,6 @@ def create_app(settings=None, engine=None, apple_verifier=None):
         for m in result.get("matched", []):
             item = item_map.get(m["item_id"])
             if item is None:
-                # Gemini returned an item_id that isn't in this menu — skip it
                 continue
             base_macros = item.get("macros")
             adjusted = None

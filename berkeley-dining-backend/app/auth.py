@@ -74,11 +74,53 @@ class AppleVerifier:
             raise HTTPException(401, "Apple identity could not be verified") from None
 
 
+def make_auth_dependency(settings, engine):
+    """
+    Returns a FastAPI dependency that validates a Bearer JWT session token and
+    yields (session_id: str, user: User).  The full User ORM object is returned
+    so callers can inspect user.is_premium without a second DB query.
+
+    Raises 401 if the token is missing/invalid/expired.
+    Raises 503 if Apple auth is not configured on the server.
+    """
+    bearer = HTTPBearer(auto_error=False)
+
+    def _configured():
+        if not settings.apple_bundle_id or len(settings.session_secret) < 32:
+            raise HTTPException(503, "Sign in with Apple is not configured on this server")
+
+    def _authenticated(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
+        _configured()
+        if not credentials or len(credentials.credentials) > 4096:
+            raise HTTPException(401, "Sign in required", headers={"WWW-Authenticate": "Bearer"})
+        try:
+            claims = jwt.decode(
+                credentials.credentials, settings.session_secret, algorithms=["HS256"],
+                issuer=SESSION_ISSUER, audience=SESSION_AUDIENCE,
+                options={"require": ["iss", "aud", "sub", "jti", "iat", "exp"]},
+            )
+        except jwt.PyJWTError:
+            raise HTTPException(401, "Session expired; sign in again") from None
+        with Session(engine) as db:
+            session = db.get(AuthSession, claims["jti"])
+            if not session or session.expires_at <= now() or session.user_id != claims["sub"]:
+                raise HTTPException(401, "Session is no longer valid")
+            user = db.get(User, session.user_id)
+            if not user:
+                raise HTTPException(401, "Account is unavailable")
+            return session.id, user
+
+    return _authenticated
+
+
 def router(settings, engine, verifier=None):
     routes = APIRouter(prefix="/v1/auth", tags=["Authentication"])
     profile = APIRouter(prefix="/v1/profile", tags=["Profile"])
     verifier = verifier or AppleVerifier(settings.apple_bundle_id)
     bearer = HTTPBearer(auto_error=False)
+
+    # Shared auth dependency (returns full User object)
+    _auth = make_auth_dependency(settings, engine)
 
     def configured():
         if not settings.apple_bundle_id or len(settings.session_secret) < 32:
@@ -87,7 +129,6 @@ def router(settings, engine, verifier=None):
     def limited(request: Request):
         configured()
         instant = now()
-        # Shared database budget; no raw IP is persisted. Do not trust arbitrary forwarded headers.
         peer = request.client.host if request.client else "unknown"
         bucket = f"{peer}:{int(instant.timestamp()) // 60}"
         key = hmac.new(settings.session_secret.encode(), bucket.encode(), hashlib.sha256).hexdigest()
@@ -120,16 +161,17 @@ def router(settings, engine, verifier=None):
             if valid is None or valid.expires_at <= now():
                 raise HTTPException(401, "Sign-in request expired; start again")
         claims = verifier.verify(body.identity_token)
-        # Serialize the consume with account/session creation. A concurrent replay loses this lock.
         with Session(engine) as db, db.begin():
             valid = db.scalar(select(AuthChallenge).where(AuthChallenge.id == cid).with_for_update())
             if valid is None or valid.expires_at <= now():
                 raise HTTPException(401, "Sign-in request expired; start again")
-            digest = hashlib.sha256(claims["nonce"].encode()).hexdigest()
-            if not hmac.compare_digest(digest, valid.nonce_hash):
+            # iOS passes sha256(rawNonce) to Apple; Apple embeds that hash as claims["nonce"].
+            # nonce_hash was stored as sha256(rawNonce) at challenge creation, so compare directly.
+            if not hmac.compare_digest(claims["nonce"], valid.nonce_hash):
                 raise HTTPException(401, "Sign-in request does not match")
             instant = now()
-            stmt = insert(User).values(id=str(uuid4()), apple_subject=claims["sub"], created_at=instant)
+            stmt = insert(User).values(id=str(uuid4()), apple_subject=claims["sub"],
+                                       created_at=instant, is_premium=False)
             db.execute(stmt.on_conflict_do_nothing(index_elements=[User.apple_subject]))
             user = db.scalar(select(User).where(User.apple_subject == claims["sub"]))
             sid, expires = str(uuid4()), instant + timedelta(days=7)
@@ -142,41 +184,23 @@ def router(settings, engine, verifier=None):
         response.headers["Cache-Control"] = "no-store"
         return result
 
-    def authenticated(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
-        configured()
-        if not credentials or len(credentials.credentials) > 4096:
-            raise HTTPException(401, "Sign in required", headers={"WWW-Authenticate":"Bearer"})
-        try:
-            claims = jwt.decode(credentials.credentials, settings.session_secret, algorithms=["HS256"],
-                issuer=SESSION_ISSUER, audience=SESSION_AUDIENCE,
-                options={"require":["iss","aud","sub","jti","iat","exp"]})
-        except jwt.PyJWTError:
-            raise HTTPException(401, "Session expired; sign in again") from None
-        with Session(engine) as db:
-            session = db.get(AuthSession, claims["jti"])
-            if not session or session.expires_at <= now() or session.user_id != claims["sub"]:
-                raise HTTPException(401, "Session is no longer valid")
-            user = db.get(User, session.user_id)
-            if not user:
-                raise HTTPException(401, "Account is unavailable")
-            return session.id, AccountResponse(id=user.id, created_at=user.created_at)
-
     @routes.get("/me", response_model=AccountResponse)
-    def me(response: Response, identity=Depends(authenticated)):
+    def me(response: Response, identity=Depends(_auth)):
+        _, user = identity
         response.headers["Cache-Control"] = "no-store"
-        return identity[1]
+        return AccountResponse(id=user.id, created_at=user.created_at)
 
     @routes.post("/logout", status_code=204)
-    def logout(identity=Depends(authenticated)):
+    def logout(identity=Depends(_auth)):
         with engine.begin() as c:
             c.execute(delete(AuthSession).where(AuthSession.id == identity[0]))
-        return Response(status_code=204, headers={"Cache-Control":"no-store"})
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
     @profile.get("/dietary", response_model=DietaryProfileResponse)
-    def get_dietary(response: Response, identity=Depends(authenticated)):
-        _, account = identity
+    def get_dietary(response: Response, identity=Depends(_auth)):
+        _, user = identity
         with Session(engine) as db:
-            row = db.get(UserDietaryProfile, account.id)
+            row = db.get(UserDietaryProfile, user.id)
         response.headers["Cache-Control"] = "no-store"
         if row is None:
             return DietaryProfileResponse()
@@ -187,12 +211,12 @@ def router(settings, engine, verifier=None):
         )
 
     @profile.put("/dietary", response_model=DietaryProfileResponse)
-    def put_dietary(body: DietaryProfile, response: Response, identity=Depends(authenticated)):
-        _, account = identity
+    def put_dietary(body: DietaryProfile, response: Response, identity=Depends(_auth)):
+        _, user = identity
         instant = now()
         with engine.begin() as c:
             stmt = insert(UserDietaryProfile).values(
-                user_id=account.id,
+                user_id=user.id,
                 allergies=body.allergies,
                 dietary_preferences=body.dietary_preferences,
                 updated_at=instant,
