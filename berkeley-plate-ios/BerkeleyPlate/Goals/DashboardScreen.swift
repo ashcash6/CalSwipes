@@ -18,8 +18,8 @@ struct DashboardScreen: View {
                 VStack(alignment: .leading, spacing: CP.sp20) {
                     dateHeader
                     progressSection
-                    if !daily.todayLogs.isEmpty { mealsSection }
                     scanSection
+                    if !daily.todayLogs.isEmpty { mealsSection }
                 }
                 .padding(CP.sp20)
             }
@@ -207,22 +207,14 @@ private struct GoalProgressCard: View {
 
     var body: some View {
         VStack(spacing: CP.sp20) {
-            // Ring + macro trio
-            HStack(spacing: CP.sp20) {
-                Button(action: onTapRing) {
-                    CPProgressRing(consumed: calories, target: targetCalories, size: 130, strokeWidth: 11)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Calorie ring — tap to view history")
-                .accessibilityValue("\(Int(calories)) of \(Int(targetCalories)) calories consumed today")
-
-                VStack(alignment: .leading, spacing: CP.sp12) {
-                    MacroStatColumn(value: protein, target: targetProtein, label: "Protein", unit: "g", color: CP.protein)
-                    MacroStatColumn(value: carbs, target: targetCarbs, label: "Carbs", unit: "g", color: CP.carbs)
-                    MacroStatColumn(value: fat, target: targetFat, label: "Fat", unit: "g", color: CP.fat)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Centered ring
+            Button(action: onTapRing) {
+                CPProgressRing(consumed: calories, target: targetCalories)
             }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("Calorie ring — tap to view history")
+            .accessibilityValue("\(Int(calories)) of \(Int(targetCalories)) calories consumed today")
 
             CPDivider()
 
@@ -233,13 +225,10 @@ private struct GoalProgressCard: View {
                 CPMacroBar(label: "Fat",     value: fat,     target: targetFat,     unit: "g", color: CP.fat)
             }
 
-            Button {
-                onTapRing()
-            } label: {
+            Button(action: onTapRing) {
                 HStack(spacing: 4) {
                     Image(systemName: "calendar").font(.caption2)
-                    Text("View calorie history")
-                        .font(.caption2)
+                    Text("View calorie history").font(.caption2)
                 }
                 .foregroundStyle(CP.textSec)
                 .frame(maxWidth: .infinity)
@@ -247,30 +236,6 @@ private struct GoalProgressCard: View {
             .buttonStyle(.plain)
         }
         .cpCard(CP.sp20)
-    }
-}
-
-private struct MacroStatColumn: View {
-    let value: Double
-    let target: Double
-    let label: String
-    let unit: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                Text("\(Int(value))")
-                    .font(.system(.subheadline, design: .rounded, weight: .bold))
-                    .foregroundStyle(color)
-                Text("/ \(Int(target))\(unit)")
-                    .font(.caption2)
-                    .foregroundStyle(CP.textSec)
-            }
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(CP.textSec)
-        }
     }
 }
 
