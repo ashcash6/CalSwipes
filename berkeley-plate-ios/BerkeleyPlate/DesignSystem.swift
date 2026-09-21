@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Hex color convenience
+// MARK: - Hex color convenience (light-mode fixed colors)
 
 extension Color {
     init(hex: String) {
@@ -14,31 +14,75 @@ extension Color {
     }
 }
 
+private extension UIColor {
+    convenience init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = CGFloat((int >> 16) & 0xFF) / 255
+        let g = CGFloat((int >> 8)  & 0xFF) / 255
+        let b = CGFloat( int        & 0xFF) / 255
+        self.init(red: r, green: g, blue: b, alpha: 1)
+    }
+}
+
 // MARK: - CalPlate Design Tokens
 
 enum CP {
 
-    // MARK: Colors
+    // MARK: Backgrounds — adaptive light/dark
 
-    /// Warm off-white page background  #F8F8F5
-    static let bg       = Color(hex: "F8F8F5")
-    /// Pure white elevated surface     #FFFFFF
-    static let surface  = Color.white
-    /// Tinted secondary surface        #F1F2F0
-    static let surface2 = Color(hex: "F1F2F0")
-    /// Subtle UI border                #DDE1E5
-    static let border   = Color(hex: "DDE1E5")
-    /// Brand navy — primary action color  #12315B
-    static let navy     = Color(hex: "12315B")
-    /// Primary text — near-black       #101A2B
-    static let text     = Color(hex: "101A2B")
-    /// Secondary text — muted blue-grey  #687384
-    static let textSec  = Color(hex: "687384")
-    /// Protein macro — muted rose      #D9828B
+    /// Warm off-white in light mode, system grouped dark in dark mode
+    static let bg = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? .systemGroupedBackground
+            : UIColor(hex: "F8F8F5")
+    })
+
+    /// Elevated card surface
+    static let surface = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? .secondarySystemGroupedBackground
+            : .white
+    })
+
+    /// Secondary surface (inset cards, option backgrounds)
+    static let surface2 = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? .tertiarySystemGroupedBackground
+            : UIColor(hex: "F1F2F0")
+    })
+
+    /// Divider / border line
+    static let border = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.separator
+            : UIColor(hex: "DDE1E5")
+    })
+
+    // MARK: Text — fully adaptive so contrast is always guaranteed
+
+    /// Primary text — adapts to light/dark automatically
+    static let text: Color    = .primary
+    /// Secondary / label text
+    static let textSec: Color = .secondary
+
+    // MARK: Brand accent — adaptive so it reads on both light and dark surfaces
+
+    /// Brand navy: deep #12315B in light mode, cornflower-blue in dark mode
+    static let navy = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(hex: "6EA8D8")   // readable on dark backgrounds
+            : UIColor(hex: "12315B")   // rich dark navy on light backgrounds
+    })
+
+    // MARK: Macro colours — fixed accent, light-safe
+
+    /// Protein — muted rose      #D9828B
     static let protein  = Color(hex: "D9828B")
-    /// Carbohydrate macro — muted amber  #D99A4A
+    /// Carbohydrates — muted amber  #D99A4A
     static let carbs    = Color(hex: "D99A4A")
-    /// Fat macro — muted teal          #6E9B9A
+    /// Fat — muted teal          #6E9B9A
     static let fat      = Color(hex: "6E9B9A")
 
     // MARK: Spacing scale (4-pt grid)
@@ -65,8 +109,8 @@ enum CP {
 
     // MARK: Shadow
 
-    static let shadowOpacity: Double = 0.05
-    static let shadowRadius:  CGFloat = 12
+    static let shadowOpacity: Double = 0.06
+    static let shadowRadius:  CGFloat = 10
     static let shadowY:       CGFloat = 2
 
     // MARK: Macro role color
@@ -77,7 +121,7 @@ enum CP {
         case .carb:    return carbs
         case .produce: return fat
         case .fat:     return fat
-        case .other:   return textSec
+        case .other:   return .secondary
         }
     }
 }
@@ -149,7 +193,7 @@ struct CPSecondaryButton: View {
             .font(.subheadline.weight(.medium))
             .frame(maxWidth: .infinity)
             .frame(height: 44)
-            .foregroundStyle(CP.navy)
+            .foregroundStyle(Color.primary)
             .overlay(RoundedRectangle(cornerRadius: CP.r12).stroke(CP.border, lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -174,22 +218,22 @@ struct CPMacroBar: View {
         VStack(alignment: .leading, spacing: CP.sp4) {
             HStack {
                 Text(label)
-                    .font(.caption2)
-                    .foregroundStyle(CP.textSec)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.primary)
                 Spacer()
                 Text("\(Int(value)) / \(Int(target)) \(unit)")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(CP.textSec)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(color.opacity(0.14)).frame(height: 5)
+                    Capsule().fill(color.opacity(0.18)).frame(height: 6)
                     Capsule().fill(color)
-                        .frame(width: geo.size.width * fraction, height: 5)
+                        .frame(width: geo.size.width * fraction, height: 6)
                         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: fraction)
                 }
             }
-            .frame(height: 5)
+            .frame(height: 6)
         }
     }
 }
@@ -211,7 +255,7 @@ struct CPProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(CP.navy.opacity(0.08), lineWidth: strokeWidth)
+                .stroke(CP.navy.opacity(0.12), lineWidth: strokeWidth)
             Circle()
                 .trim(from: 0, to: fraction)
                 .stroke(
@@ -224,18 +268,18 @@ struct CPProgressRing: View {
             VStack(spacing: 2) {
                 if isOver {
                     Text("+\(Int(consumed - target))")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(CP.carbs)
                     Text("over budget")
                         .font(.caption2)
-                        .foregroundStyle(CP.textSec)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text(Int(max(0, target - consumed)).formatted())
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(CP.navy)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
                     Text("kcal left")
                         .font(.caption2)
-                        .foregroundStyle(CP.textSec)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -249,20 +293,17 @@ struct CPSectionLabel: View {
     let text: String
     var body: some View {
         Text(text.uppercased())
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(CP.textSec)
-            .tracking(1.1)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .tracking(0.8)
     }
 }
 
 // MARK: - Hair divider
 
 struct CPDivider: View {
-    var color: Color = CP.border
     var body: some View {
-        Rectangle()
-            .fill(color)
-            .frame(height: 0.5)
+        Divider()
     }
 }
 
@@ -282,11 +323,11 @@ struct CPMacroStat: View {
                     .foregroundStyle(color)
                 Text(unit)
                     .font(.caption2.weight(.medium))
-                    .foregroundStyle(color.opacity(0.7))
+                    .foregroundStyle(color.opacity(0.8))
             }
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(CP.textSec)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
