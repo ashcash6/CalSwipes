@@ -50,45 +50,39 @@ struct ProfileScreen: View {
                     if let goal = daily.goal {
                         Text("\(Int(goal.targetCalories)) kcal")
                             .font(.system(.title, design: .rounded, weight: .bold))
-                            .foregroundStyle(CP.text)
                     } else {
                         Text("No goal set")
                             .font(.title2.weight(.semibold))
-                            .foregroundStyle(CP.textSec)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
-                Button {
-                    showGoalSheet = true
-                } label: {
-                    Text("Edit")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(CP.navy)
-                        .padding(.horizontal, CP.sp12)
-                        .padding(.vertical, CP.sp8)
-                        .background(CP.navy.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r8))
-                }
-                .buttonStyle(.plain)
+                Button("Edit") { showGoalSheet = true }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(CP.navy)
+                    .padding(.horizontal, CP.sp12)
+                    .padding(.vertical, CP.sp8)
+                    .background(CP.navy.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r8))
+                    .buttonStyle(.plain)
             }
 
             if let goal = daily.goal {
-                CPDivider()
+                Divider()
 
                 HStack(spacing: 0) {
                     CPMacroStat(value: goal.targetProteinG, unit: "g", label: "Protein", color: CP.protein)
-                    CPDivider().frame(width: 0.5, height: 36)
+                    Divider().frame(width: 0.5, height: 36)
                     CPMacroStat(value: goal.targetCarbsG, unit: "g", label: "Carbs", color: CP.carbs)
-                    CPDivider().frame(width: 0.5, height: 36)
+                    Divider().frame(width: 0.5, height: 36)
                     CPMacroStat(value: goal.targetFatG, unit: "g", label: "Fat", color: CP.fat)
                 }
 
                 if daily.currentStreak > 0 {
-                    CPDivider()
+                    Divider()
                     HStack(spacing: CP.sp8) {
                         Text("🔥")
                         Text("\(daily.currentStreak)-day logging streak")
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(CP.text)
                         Spacer()
                     }
                 }
@@ -104,40 +98,38 @@ struct ProfileScreen: View {
     // MARK: - Action rows
 
     private var actionsSection: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: CP.sp8) {
             CPSectionLabel(text: "Preferences")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, CP.sp8)
 
             VStack(spacing: 0) {
                 ProfileRow(icon: "fork.knife.circle.fill", label: "Dietary restrictions") {
                     showDietarySheet = true
                 }
-                CPDivider().padding(.leading, 48)
+                Divider().padding(.leading, 52)
                 ProfileRow(icon: "repeat.circle.fill", label: "Recurring foods") {
                     showRecurringFoods = true
                 }
-                CPDivider().padding(.leading, 48)
+                Divider().padding(.leading, 52)
                 ProfileRow(icon: "scalemass.fill", label: "Weight tracking") {
                     showWeight = true
                 }
             }
-            .cpCard(0)
+            .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
+            .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
         }
     }
 
     private var appSection: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: CP.sp8) {
             CPSectionLabel(text: "App")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, CP.sp8)
 
             VStack(spacing: 0) {
                 ProfileRow(icon: "info.circle.fill", label: "About CalPlate") {
                     showAbout = true
                 }
             }
-            .cpCard(0)
+            .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
+            .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
         }
     }
 }
@@ -158,14 +150,14 @@ private struct ProfileRow: View {
                     .frame(width: 28)
                 Text(label)
                     .font(.body)
-                    .foregroundStyle(CP.text)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(CP.textSec)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, CP.sp16)
             .padding(.vertical, CP.sp14)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
