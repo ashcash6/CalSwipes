@@ -147,6 +147,17 @@ extension View {
     }
 }
 
+// MARK: - Press feedback button style (used by all CP buttons)
+
+struct CPPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.72 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Primary button
 
 struct CPPrimaryButton: View {
@@ -157,7 +168,10 @@ struct CPPrimaryButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
             HStack(spacing: CP.sp8) {
                 if isLoading {
                     ProgressView().tint(.white).scaleEffect(0.85)
@@ -172,7 +186,7 @@ struct CPPrimaryButton: View {
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: CP.r12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CPPressStyle())
         .disabled(isLoading || isDisabled)
     }
 }
@@ -196,7 +210,7 @@ struct CPSecondaryButton: View {
             .foregroundStyle(Color.primary)
             .overlay(RoundedRectangle(cornerRadius: CP.r12).stroke(CP.border, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CPPressStyle())
     }
 }
 

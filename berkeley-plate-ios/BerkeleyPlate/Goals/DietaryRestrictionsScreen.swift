@@ -31,14 +31,7 @@ struct DietaryRestrictionsScreen: View {
                             items: knownDietaryTags,
                             selection: $dietaryTags)
 
-                    Button("Save") { save() }
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(PlateStyle.green)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .buttonStyle(.plain)
+                    CPPrimaryButton(title: "Save") { save() }
                 }
                 .padding(24)
             }
