@@ -27,6 +27,10 @@ struct DashboardScreen: View {
             .navigationTitle("Today")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .task(id: store.menuLoadTrigger) {
+            guard store.mealValidated else { return }
+            await store.loadMenu()
+        }
         .sheet(isPresented: $showGoalSheet) {
             OnboardingScreen(store: daily, editMode: true)
         }
@@ -154,15 +158,15 @@ struct DashboardScreen: View {
             }
 
             if store.isLoading {
-                Text("Loading menu…").font(.caption).foregroundStyle(CP.textSec)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            } else if store.menu == nil {
-                Text("Select a dining hall in the Menu tab to enable scanning.")
+                Text("Loading your menu…")
                     .font(.caption).foregroundStyle(CP.textSec)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .multilineTextAlignment(.center)
+            } else if store.menu == nil {
+                Text("Finding your nearest dining hall…")
+                    .font(.caption).foregroundStyle(CP.textSec)
+                    .frame(maxWidth: .infinity, alignment: .center)
             } else if !(store.menu?.isFresh() ?? false) {
-                Text("Menu expired — pull to refresh in the Menu tab.")
+                Text("Menu expired — open the Menu tab and pull to refresh.")
                     .font(.caption).foregroundStyle(CP.textSec)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .multilineTextAlignment(.center)
