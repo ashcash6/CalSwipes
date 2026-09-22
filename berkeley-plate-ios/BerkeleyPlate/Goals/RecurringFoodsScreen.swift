@@ -150,6 +150,9 @@ struct EditRecurringFoodSheet: View {
     @State private var fatText: String
     @State private var typicalMeal: Meal?
     @State private var defaultEnabled: Bool
+    @FocusState private var focusedField: FocusField?
+
+    private enum FocusField { case name }
 
     init(food: RecurringFood?, onSave: @escaping (RecurringFood) -> Void) {
         self.food   = food
@@ -175,6 +178,7 @@ struct EditRecurringFoodSheet: View {
                     LabeledContent("Name") {
                         TextField("Protein Shake", text: $name)
                             .multilineTextAlignment(.trailing)
+                            .focused($focusedField, equals: .name)
                     }
                     LabeledContent("Serving") {
                         TextField("1 shake (360 ml)", text: $servingDescription)
@@ -201,6 +205,7 @@ struct EditRecurringFoodSheet: View {
             }
             .navigationTitle(food == nil ? "Add Food" : "Edit Food")
             .navigationBarTitleDisplayMode(.inline)
+            .task { focusedField = .name }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

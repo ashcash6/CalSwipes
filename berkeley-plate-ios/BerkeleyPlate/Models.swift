@@ -193,6 +193,7 @@ struct ScanMealRequest: Encodable {
     let hall: String
     let date: String
     let meal: String
+    let fromDiningHall: Bool
 }
 
 struct ScanMatchedItem: Decodable {
@@ -206,4 +207,5 @@ struct ScanMatchedItem: Decodable {
 struct ScanMealResponse: Decodable {
     let matched: [ScanMatchedItem]
     let noMatchReason: String?
+    let genericMacros: Macros?
 }

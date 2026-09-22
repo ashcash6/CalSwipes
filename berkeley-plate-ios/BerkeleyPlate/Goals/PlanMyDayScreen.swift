@@ -92,12 +92,16 @@ private struct PlanContentView: View {
     var planStore: PlanStore
     var daily: DailyStore
 
+    @State private var showRecurringFoods = false
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: CP.sp16) {
                 planHeader
                 offTargetBanner
-                if !daily.recurringFoods.isEmpty {
+                if daily.recurringFoods.isEmpty {
+                    recurringFoodsNudge
+                } else {
                     snacksSection
                 }
                 ForEach(plan.slots.sorted(by: { $0.slotOrder < $1.slotOrder })) { slot in
@@ -111,9 +115,39 @@ private struct PlanContentView: View {
             }
             .padding(CP.sp20)
         }
+        .sheet(isPresented: $showRecurringFoods) {
+            RecurringFoodsScreen(daily: daily)
+        }
     }
 
-    private var totalPlannedMacros: PlanMacros {
+    private var recurringFoodsNudge: some View {
+        Button { showRecurringFoods = true } label: {
+            HStack(spacing: CP.sp12) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(CP.navy)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Add recurring foods")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(CP.text)
+                    Text("Protein shakes, bars, or snacks you eat daily — deducted from your plan budget.")
+                        .font(.caption)
+                        .foregroundStyle(CP.textSec)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(CP.textSec)
+            }
+            .padding(CP.sp16)
+            .background(CP.navy.opacity(0.06), in: RoundedRectangle(cornerRadius: CP.r12))
+        }
+        .buttonStyle(CPPressStyle())
+    }
+
+    // Dining-hall slots only — used for the off-target comparison (goal minus snacks).
+    private var totalDiningMacros: PlanMacros {
         plan.slots.reduce(.zero) { total, slot in
             if let m = slot.acceptedMacros { return total + m }
             if let m = slot.mealOptions.first?.totalMacros { return total + m }
@@ -121,55 +155,81 @@ private struct PlanContentView: View {
         }
     }
 
-    private var planHeader: some View {
-        let snackCal  = plan.snackMacros(recurringFoods: daily.recurringFoods).caloriesKcal
-        let diningTarget = max(0, plan.goalCalories - plan.savedOutsideKcal - snackCal)
-        let total = totalPlannedMacros
+    // Full day total: dining slots + enabled recurring snacks.
+    private var totalProjectedMacros: PlanMacros {
+        totalDiningMacros + plan.snackMacros(recurringFoods: daily.recurringFoods)
+    }
 
-        return VStack(alignment: .leading, spacing: CP.sp8) {
+    private var planHeader: some View {
+        let snackMacros  = plan.snackMacros(recurringFoods: daily.recurringFoods)
+        let snackCal     = snackMacros.caloriesKcal
+        let diningTarget = max(0, plan.goalCalories - plan.savedOutsideKcal - snackCal)
+        let total        = totalProjectedMacros
+
+        return VStack(alignment: .leading, spacing: CP.sp12) {
             CPSectionLabel(text: plan.planDate)
 
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Your meal plan")
-                        .font(.system(.title2, design: .serif, weight: .semibold))
-                        .foregroundStyle(CP.text)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Your meal plan")
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(CP.text)
 
-                    if plan.savedOutsideKcal > 0 {
-                        HStack(spacing: 6) {
-                            Image(systemName: "fork.knife")
-                                .font(.caption2).foregroundStyle(CP.navy)
-                            Text("Need \(Int(diningTarget)) kcal from dining halls")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(CP.navy)
-                        }
-                        HStack(spacing: 4) {
-                            Text("Daily goal: \(Int(plan.goalCalories)) kcal")
-                            Text("·")
-                            Text("\(Int(plan.savedOutsideKcal)) kcal outside")
-                                .foregroundStyle(CP.carbs)
-                        }
-                        .font(.caption2).foregroundStyle(CP.textSec)
-                    } else {
-                        Text("Goal: \(Int(plan.goalCalories)) kcal daily")
-                            .font(.caption2).foregroundStyle(CP.textSec)
-                    }
-                }
-
-                Spacer()
-
-                if total.caloriesKcal > 0 {
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text("\(Int(total.caloriesKcal)) kcal")
-                            .font(.title3.weight(.bold))
+                if plan.savedOutsideKcal > 0 {
+                    HStack(spacing: 4) {
+                        Text("Daily goal: \(Int(plan.goalCalories)) kcal")
+                        Text("·")
+                        Text("\(Int(plan.savedOutsideKcal)) kcal outside")
+                            .foregroundStyle(CP.carbs)
+                        Text("·")
+                        Text("\(Int(diningTarget)) kcal dining")
                             .foregroundStyle(CP.navy)
-                        Text("\(Int(total.proteinG))g pro · \(Int(total.carbsG))g carbs · \(Int(total.fatG))g fat")
+                    }
+                    .font(.caption2).foregroundStyle(CP.textSec)
+                } else {
+                    Text("Goal: \(Int(plan.goalCalories)) kcal daily")
+                        .font(.caption2).foregroundStyle(CP.textSec)
+                }
+            }
+
+            if total.caloriesKcal > 0 {
+                Divider()
+                VStack(alignment: .leading, spacing: CP.sp8) {
+                    CPSectionLabel(text: "Total projected")
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("\(Int(total.caloriesKcal))")
+                            .font(.system(.title2, design: .rounded, weight: .bold))
+                            .foregroundStyle(CP.navy)
+                        Text("kcal")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(CP.textSec)
+                        Spacer()
+                        HStack(spacing: CP.sp14) {
+                            macroChip(Int(total.proteinG), label: "pro", color: CP.protein)
+                            macroChip(Int(total.carbsG),   label: "carbs", color: CP.carbs)
+                            macroChip(Int(total.fatG),     label: "fat", color: CP.fat)
+                        }
+                    }
+                    if snackCal > 0 {
+                        Text("Includes \(Int(snackCal)) kcal from recurring snacks")
                             .font(.caption2).foregroundStyle(CP.textSec)
                     }
                 }
             }
         }
+        .cpCard(CP.sp20)
     }
+
+    private func macroChip(_ value: Int, label: String, color: Color) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 2) {
+            Text("\(value)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(CP.textSec)
+        }
+    }
+
 
     private var snacksSection: some View {
         VStack(alignment: .leading, spacing: CP.sp8) {
@@ -237,7 +297,7 @@ private struct PlanContentView: View {
 
     @ViewBuilder
     private var offTargetBanner: some View {
-        let total = totalPlannedMacros
+        let total = totalDiningMacros
         let snackCal = plan.snackMacros(recurringFoods: daily.recurringFoods).caloriesKcal
         let target = max(100, plan.goalCalories - plan.savedOutsideKcal - snackCal)
         if total.caloriesKcal > 50 {
@@ -491,13 +551,11 @@ private struct MealComboCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // Option header
             HStack {
-                Text("Option \(optionNumber)")
+                let ordinals = ["1st choice", "2nd choice", "3rd choice"]
+                Text(optionNumber <= ordinals.count ? ordinals[optionNumber - 1] : "Option \(optionNumber)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(CP.navy)
                 Spacer()
-                Text(String(format: "%.0f pts", combo.finalScore))
-                    .font(.caption2)
-                    .foregroundStyle(CP.textSec.opacity(0.6))
             }
             .padding(.horizontal, CP.sp14)
             .padding(.top, 11)
@@ -793,6 +851,8 @@ struct CreatePlanSheet: View {
     @State private var isGenerating = false
     /// Calories to keep aside for meals eaten outside dining halls (typed as text for keyboard).
     @State private var savedOutsideText: String = ""
+    /// Per-hall available meals fetched when the sheet opens — drives the meal period pickers.
+    @State private var hallMeals: [Hall: [Meal]] = [:]
 
     var body: some View {
         NavigationStack {
@@ -847,6 +907,30 @@ struct CreatePlanSheet: View {
             }
         }
         .onAppear { applyDefaults() }
+        .task {
+            // Fetch availability for ALL halls in parallel so every hall's meal
+            // period picker shows only the periods that actually exist for that day.
+            let date = today
+            await withTaskGroup(of: (Hall, [Meal]?).self) { group in
+                for hall in Hall.allCases {
+                    group.addTask { @MainActor in
+                        let meals = await store.cachedOrFetchMeals(for: hall, date: date)
+                        return (hall, meals)
+                    }
+                }
+                for await (hall, meals) in group {
+                    if let meals { hallMeals[hall] = meals }
+                }
+            }
+            // Correct any pre-filled occasions whose meal period is now known to be invalid
+            // for the selected hall (happens when applyDefaults() ran before data arrived).
+            for i in mealOccasions.indices {
+                let avail = availableMeals(for: mealOccasions[i].hall)
+                if avail.count < Meal.allCases.count && !avail.contains(mealOccasions[i].meal) {
+                    mealOccasions[i].meal = avail.first ?? mealOccasions[i].meal
+                }
+            }
+        }
         .interactiveDismissDisabled(isGenerating)
         .sheet(item: $editingSnackFood) { food in
             EditSnackTodaySheet(food: food,
@@ -945,11 +1029,17 @@ struct CreatePlanSheet: View {
         Section {
             ForEach(Array(mealOccasions.enumerated()), id: \.element.id) { index, occasion in
                 HStack(spacing: 10) {
-                    // Hall picker
+                    // Hall picker — corrects meal period when the new hall's
+                    // known availability doesn't include the current selection.
                     Menu {
                         ForEach(Hall.allCases) { hall in
                             Button {
                                 mealOccasions[index].hall = hall
+                                let avail = availableMeals(for: hall)
+                                if avail.count < Meal.allCases.count,
+                                   !avail.contains(mealOccasions[index].meal) {
+                                    mealOccasions[index].meal = avail.first ?? mealOccasions[index].meal
+                                }
                             } label: {
                                 if hall == occasion.hall {
                                     Label(hall.title, systemImage: "checkmark")
@@ -970,8 +1060,8 @@ struct CreatePlanSheet: View {
 
                     Text("·").foregroundStyle(.tertiary).font(.caption)
 
-                    // Meal period picker — filtered to today's available periods
-                    let availablePeriods = store.availableMeals.isEmpty ? Meal.allCases : store.availableMeals
+                    // Meal period picker — filtered to periods known to exist for THIS slot's hall.
+                    let availablePeriods = availableMeals(for: occasion.hall)
                     Menu {
                         ForEach(availablePeriods) { meal in
                             Button {
@@ -1080,21 +1170,42 @@ struct CreatePlanSheet: View {
         }
     }
 
+    /// Available meal periods for a given hall.
+    /// Priority: (1) live data fetched this session, (2) UserDefaults cache from AppStore,
+    /// (3) live store data for the currently selected hall, (4) all cases as a fallback.
+    private func availableMeals(for hall: Hall) -> [Meal] {
+        // Freshest: fetched when the sheet opened
+        if let meals = hallMeals[hall], !meals.isEmpty { return meals }
+        // Warm UserDefaults cache (written by AppStore on previous foreground/selectHall calls)
+        let key = "availMeals-\(hall.rawValue)-\(today)"
+        if let raw = UserDefaults.standard.stringArray(forKey: key) {
+            let meals = raw.compactMap { Meal(rawValue: $0) }
+            if !meals.isEmpty { return meals }
+        }
+        // Live data for the currently selected hall
+        if hall == store.selectedHall && !store.availableMeals.isEmpty {
+            return store.availableMeals
+        }
+        // No data yet — allow any period; the task will correct invalid selections after it lands
+        return Meal.allCases
+    }
+
     /// Pre-fill defaults when the sheet opens.
-    /// Creates one occasion per available meal period, all at the detected default hall.
-    /// Falls back to Lunch + Dinner when menu data hasn't loaded yet.
+    /// Creates one occasion per KNOWN available meal period for the detected hall.
+    /// When no cached data exists, falls back to a sensible time-based guess.
     private func applyDefaults() {
         let defaultHall = store.selectedHall
-        let available = store.availableMeals
-        if !available.isEmpty {
-            mealOccasions = Meal.allCases
-                .filter { available.contains($0) }
-                .map { MealOccasion(hall: defaultHall, meal: $0) }
+        let available   = availableMeals(for: defaultHall)
+        // Only pre-populate specific slots when we have real availability data for this hall.
+        // Meal.allCases (6 entries) means we had no cached data — use a time-based default instead.
+        if available.count < Meal.allCases.count {
+            mealOccasions = available.map { MealOccasion(hall: defaultHall, meal: $0) }
         } else {
-            // Menu hasn't loaded yet — pick the two most common periods as a safe default
+            let suggested = BerkeleyClock.suggestedMeal()
+            let second: Meal = suggested == .dinner ? .lunch : .dinner
             mealOccasions = [
-                MealOccasion(hall: defaultHall, meal: .brunch),
-                MealOccasion(hall: defaultHall, meal: .dinner)
+                MealOccasion(hall: defaultHall, meal: suggested),
+                MealOccasion(hall: defaultHall, meal: second)
             ]
         }
         snackOverrides = daily.recurringFoods.map { food in

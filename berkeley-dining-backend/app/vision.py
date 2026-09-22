@@ -38,6 +38,24 @@ If you cannot match any item with confidence ≥ {CONFIDENCE_THRESHOLD}
 set "matched" to [] and "no_match_reason" to a brief explanation."""
 
 
+def _generic_prompt() -> str:
+    return """You are a nutrition expert analyzing a food photo.
+
+Identify the food(s) visible and estimate their combined nutritional content for the portion shown.
+
+Reply ONLY with a JSON object — no markdown fences, no prose:
+{
+  "description": "<brief description, e.g. 'grilled chicken sandwich with fries'>",
+  "calories_kcal": <number>,
+  "protein_g": <number>,
+  "carbs_g": <number>,
+  "fat_g": <number>,
+  "confidence": <0.0-1.0>
+}
+
+If the image is unclear or you cannot identify food, set confidence to 0.0 and all macros to 0."""
+
+
 def _strip_fences(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
@@ -97,3 +115,40 @@ def identify_items(
         result["no_match_reason"] = "No menu items identified with sufficient confidence"
 
     return result
+
+
+def identify_food_generic(
+    photo_bytes: bytes,
+    mime_type: str,
+    api_key: str,
+) -> dict:
+    """Estimate macros for any food photo without a menu constraint.
+
+    Returns a dict with keys: description, calories_kcal, protein_g, carbs_g, fat_g, confidence.
+    """
+    photo_b64 = base64.b64encode(photo_bytes).decode()
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": _generic_prompt()},
+                {"inline_data": {"mime_type": mime_type, "data": photo_b64}},
+            ]
+        }],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 256},
+    }
+
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(f"{GEMINI_URL}?key={api_key}", json=payload)
+        resp.raise_for_status()
+
+    raw = _strip_fences(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+    result = json.loads(raw)
+
+    return {
+        "description": str(result.get("description", "Unknown food")),
+        "calories_kcal": max(0.0, float(result.get("calories_kcal", 0))),
+        "protein_g": max(0.0, float(result.get("protein_g", 0))),
+        "carbs_g": max(0.0, float(result.get("carbs_g", 0))),
+        "fat_g": max(0.0, float(result.get("fat_g", 0))),
+        "confidence": min(1.0, max(0.0, float(result.get("confidence", 0)))),
+    }

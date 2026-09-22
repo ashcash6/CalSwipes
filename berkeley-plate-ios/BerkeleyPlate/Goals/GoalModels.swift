@@ -73,10 +73,12 @@ enum ActivityLevel: String, Codable, CaseIterable, Identifiable {
 
 struct UserGoal: Codable {
     var goalType: GoalType
-    var pace: Pace
+    var pace: Pace                   // kept for backward-compat decoding; no longer used in calorie math
     var heightIn: Double
     var weightLbs: Double
     var activityLevel: ActivityLevel
+    var weeklyRateLbs: Double = 1.0  // 1 lb/week ≈ 500 kcal/day adjustment
+    var targetWeightLbs: Double? = nil
 
     // Manual overrides — nil means "use calculated value"
     var manualCalories: Double? = nil
@@ -88,6 +90,45 @@ struct UserGoal: Codable {
     var allergens: [String] = []
     var dietaryTags: [String] = []
 
+    // Custom decoder so new fields don't break existing saved goals.
+    // weeklyRateLbs and targetWeightLbs weren't present in earlier stored data.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        goalType      = try c.decode(GoalType.self,      forKey: .goalType)
+        pace          = try c.decode(Pace.self,           forKey: .pace)
+        heightIn      = try c.decode(Double.self,         forKey: .heightIn)
+        weightLbs     = try c.decode(Double.self,         forKey: .weightLbs)
+        activityLevel = try c.decode(ActivityLevel.self,  forKey: .activityLevel)
+        weeklyRateLbs    = try c.decodeIfPresent(Double.self,   forKey: .weeklyRateLbs) ?? 1.0
+        targetWeightLbs  = try c.decodeIfPresent(Double.self,   forKey: .targetWeightLbs)
+        manualCalories   = try c.decodeIfPresent(Double.self,   forKey: .manualCalories)
+        manualProteinG   = try c.decodeIfPresent(Double.self,   forKey: .manualProteinG)
+        manualCarbsG     = try c.decodeIfPresent(Double.self,   forKey: .manualCarbsG)
+        manualFatG       = try c.decodeIfPresent(Double.self,   forKey: .manualFatG)
+        allergens        = try c.decodeIfPresent([String].self,  forKey: .allergens) ?? []
+        dietaryTags      = try c.decodeIfPresent([String].self,  forKey: .dietaryTags) ?? []
+    }
+
+    init(goalType: GoalType, pace: Pace, heightIn: Double, weightLbs: Double,
+         activityLevel: ActivityLevel, weeklyRateLbs: Double = 1.0,
+         targetWeightLbs: Double? = nil, manualCalories: Double? = nil,
+         manualProteinG: Double? = nil, manualCarbsG: Double? = nil, manualFatG: Double? = nil,
+         allergens: [String] = [], dietaryTags: [String] = []) {
+        self.goalType       = goalType
+        self.pace           = pace
+        self.heightIn       = heightIn
+        self.weightLbs      = weightLbs
+        self.activityLevel  = activityLevel
+        self.weeklyRateLbs  = weeklyRateLbs
+        self.targetWeightLbs = targetWeightLbs
+        self.manualCalories = manualCalories
+        self.manualProteinG = manualProteinG
+        self.manualCarbsG   = manualCarbsG
+        self.manualFatG     = manualFatG
+        self.allergens      = allergens
+        self.dietaryTags    = dietaryTags
+    }
+
     var isManualMode: Bool { manualCalories != nil }
 
     private var weightKg: Double { weightLbs * 0.453592 }
@@ -98,18 +139,8 @@ struct UserGoal: Codable {
         let delta: Double
         switch goalType {
         case .maintain: delta = 0
-        case .lose:
-            switch pace {
-            case .slow: delta = -250
-            case .medium: delta = -500
-            case .aggressive: delta = -750
-            }
-        case .gain:
-            switch pace {
-            case .slow: delta = 250
-            case .medium: delta = 400
-            case .aggressive: delta = 600
-            }
+        case .lose:     delta = -(weeklyRateLbs * 500)
+        case .gain:     delta = weeklyRateLbs * 500
         }
         return max(1200, base + delta)
     }

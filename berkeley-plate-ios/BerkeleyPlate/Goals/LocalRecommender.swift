@@ -205,8 +205,12 @@ extension LocalRecommender {
             " glaze", " marinade", " drizzle",
             // Spreads / small servings
             "butter pat", "margarine pat", "jam ", "jelly ", "jam\n", "jelly\n",
+            "peanut butter packet", "almond butter packet",
             "maple syrup", "syrup ",
-            "cream cheese cup", "cream cheese packet",
+            "cream cheese cup", "cream cheese packet", "cream cheese spread",
+            "whipped cream", "cool whip", "whipped topping",
+            "sour cream cup", "sour cream packet",
+            "half and half",
             // Gravies
             " gravy", "au jus",
             // Other condiments
@@ -665,11 +669,11 @@ extension LocalRecommender {
         }
     }
 
-    /// Compute how many servings of each protein item to recommend, scaled to fill the budget.
+    /// Compute how many servings of each item to recommend, scaled to fill the budget.
     ///
-    /// Only protein-role items are scaled (never carbs or produce).
-    /// Allows up to 25% calorie overshoot so the protein target is actually reachable.
-    /// Max 6× per item to keep recommendations sensible.
+    /// Protein items scale to hit both the protein target AND the calorie budget.
+    /// Carb items scale up to 2× in a second pass when the meal is still well under budget.
+    /// Ceiling: total meal must not exceed 1.25× budget. Max 4× per protein item.
     private static func computeServings(
         combo: [(FoodRole, MenuItem)],
         budget: PlanBudget
@@ -692,15 +696,34 @@ extension LocalRecommender {
                 continue
             }
 
-            let remainingCal = max(0, budget.caloriesKcal - nonProteinCal)
             let remainingPro = max(0, budget.proteinG - nonProteinPro)
+            // Hard ceiling: total meal must not exceed 1.25× the full budget (not just the protein slot)
+            let maxForCals   = max(1, Int(floor((budget.caloriesKcal * 1.25 - nonProteinCal) / m.caloriesKcal)))
+            // Minimum to hit protein target
+            let idealForPro  = max(1, Int(ceil(remainingPro / m.proteinG)))
+            // Minimum to reach 85% of calorie budget (protein is the right macro to add more of)
+            let idealForCals = max(1, Int(ceil((budget.caloriesKcal * 0.85 - nonProteinCal) / m.caloriesKcal)))
 
-            // Allow up to 25% calorie overshoot so protein target stays reachable
-            let maxForCals = max(1, Int(floor(remainingCal * 1.25 / m.caloriesKcal)))
-            // Ideal count to reach protein target (ceil so we round up toward the goal)
-            let idealForPro = max(1, Int(ceil(remainingPro / m.proteinG)))
+            result[item.id] = max(1, min(4, min(maxForCals, max(idealForPro, idealForCals))))
+        }
 
-            result[item.id] = max(1, min(6, min(maxForCals, idealForPro)))
+        // Second pass: scale one carb item up to 2× if the meal is still well under budget.
+        let proteinCalTotal = combo
+            .filter { $0.0 == .protein }
+            .reduce(0.0) { total, pair in
+                guard let m = pair.1.macros else { return total }
+                return total + m.caloriesKcal * Double(result[pair.1.id] ?? 1)
+            }
+        let totalAfterProtein = nonProteinCal + proteinCalTotal
+
+        if totalAfterProtein < budget.caloriesKcal * 0.80 {
+            let calGap = budget.caloriesKcal - totalAfterProtein
+            for (role, item) in combo where role == .carb {
+                guard let m = item.macros, m.caloriesKcal > 0 else { continue }
+                let extra = min(1, Int(round(calGap / m.caloriesKcal)))
+                if extra >= 1 { result[item.id] = 1 + extra }
+                break  // scale at most one carb item per combo
+            }
         }
 
         return result

@@ -14,29 +14,32 @@ actor GeminiScanPipeline: ScanAnalyzing {
         self.api = APIClient(baseURL: baseURL)
     }
 
-    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>,
+    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, isDiningHall: Bool = true,
                  progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult {
-        try ScanPipeline.validateMenu(menu, capturedAt: photo.capturedAt)
+        if isDiningHall {
+            try ScanPipeline.validateMenu(menu, capturedAt: photo.capturedAt)
+        }
         try Task.checkCancellation()
         await progress("Identifying food with AI…")
 
-        if let result = try await attemptGemini(photo: photo, menu: menu) {
+        if let result = try await attemptGemini(photo: photo, menu: menu, isDiningHall: isDiningHall) {
             return result
         }
 
         try Task.checkCancellation()
         await progress("Trying on-device recognition…")
-        return try await fallback.analyze(photo: photo, menu: menu, expected: expected, progress: progress)
+        return try await fallback.analyze(photo: photo, menu: menu, expected: expected, isDiningHall: isDiningHall, progress: progress)
     }
 
     // Returns nil when Gemini finds no confident match, so the caller falls back to Vision.
-    private func attemptGemini(photo: CapturedPhoto, menu: MenuEnvelope) async throws -> ScanResult? {
+    private func attemptGemini(photo: CapturedPhoto, menu: MenuEnvelope, isDiningHall: Bool) async throws -> ScanResult? {
         let body = ScanMealRequest(
             photo: photo.jpegData.base64EncodedString(),
             mimeType: "image/jpeg",
             hall: menu.hall.rawValue,
             date: menu.date,
-            meal: menu.meal.rawValue
+            meal: menu.meal.rawValue,
+            fromDiningHall: isDiningHall
         )
         let httpResult: HTTPResult
         do {
@@ -47,6 +50,17 @@ actor GeminiScanPipeline: ScanAnalyzing {
         }
 
         let response = try JSONCoding.decoder().decode(ScanMealResponse.self, from: httpResult.data)
+
+        // Non-dining-hall path: backend returns generic macro estimates instead of menu matches.
+        if !isDiningHall, let generic = response.genericMacros {
+            guard [generic.caloriesKcal, generic.proteinG, generic.carbsG, generic.fatG]
+                .allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
+            return ScanResult(lines: [], total: generic, lower: nil, upper: nil,
+                              isDemo: false, isVisionClassified: false, isGenericFallback: false,
+                              isGeminiClassified: true, isNonDiningHallEstimate: true,
+                              menuRevision: menu.revision)
+        }
+
         guard !response.matched.isEmpty else { return nil }
 
         var lines: [EstimatedLine] = []
@@ -66,6 +80,6 @@ actor GeminiScanPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: lines, total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: false, isGenericFallback: false,
-                          isGeminiClassified: true, menuRevision: menu.revision)
+                          isGeminiClassified: true, isNonDiningHallEstimate: false, menuRevision: menu.revision)
     }
 }

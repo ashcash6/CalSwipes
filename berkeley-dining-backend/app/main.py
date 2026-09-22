@@ -102,6 +102,32 @@ def create_app(settings=None, engine=None):
         if len(photo_bytes) > MAX_PHOTO_BYTES:
             return error("photo_too_large", "Photo must be under 10 MB", 413)
 
+        # Non-dining-hall path: skip menu lookup, ask Gemini for free-form macro estimates.
+        if not body.from_dining_hall:
+            log = logging.getLogger("berkeley.api")
+            try:
+                generic = vision.identify_food_generic(photo_bytes, body.mime_type, settings.gemini_api_key)
+            except httpx.HTTPStatusError as exc:
+                log.error("gemini_generic_http_error status=%s body=%s", exc.response.status_code, exc.response.text[:500])
+                return error("vision_error", "Photo recognition service returned an error", 502)
+            except httpx.TransportError as exc:
+                log.error("gemini_generic_transport_error %s", exc)
+                return error("vision_error", "Photo recognition service is temporarily unavailable", 503)
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                log.error("gemini_generic_parse_error %s", exc)
+                return error("vision_error", "Unexpected response from photo recognition service", 502)
+
+            macros = {
+                "calories_kcal": generic["calories_kcal"],
+                "protein_g": generic["protein_g"],
+                "carbs_g": generic["carbs_g"],
+                "fat_g": generic["fat_g"],
+            }
+            return JSONResponse(
+                {"matched": [], "no_match_reason": None, "generic_macros": macros},
+                headers={"Cache-Control": "no-store"},
+            )
+
         with Session(engine) as session:
             snapshot = session.scalar(select(MenuSnapshot).where(
                 MenuSnapshot.hall == body.hall.value,

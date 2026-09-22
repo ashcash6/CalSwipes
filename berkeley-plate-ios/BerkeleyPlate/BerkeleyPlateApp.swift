@@ -80,6 +80,7 @@ struct MainTabView: View {
             ProfileScreen(daily: daily, store: store)
                 .tag(3)
                 .tabItem { Label("Profile", systemImage: "person.circle") }
+                .badge(daily.weightEntries.contains { $0.date == BerkeleyClock.serviceDate() } ? 0 : 1)
         }
         .tint(CP.navy)
         .preferredColorScheme(preferredColorScheme)

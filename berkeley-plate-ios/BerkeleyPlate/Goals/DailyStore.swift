@@ -14,6 +14,8 @@ final class DailyStore {
 
     // Cached streak — computed once on data change, not on every view render
     private(set) var currentStreak: Int = 0
+    // Monotonic counter to discard stale out-of-order Task.detached results
+    private var streakGeneration: Int = 0
 
     private let goalKey           = "userGoal_v1"
     private let logsKey           = "mealLogs_v1"
@@ -222,17 +224,32 @@ final class DailyStore {
         guard let goal, goal.targetCalories > 0 else { currentStreak = 0; return }
         let target = goal.targetCalories
         let logsCopy = logs  // snapshot value types on main before going background
+        streakGeneration &+= 1
+        let myGen = streakGeneration
+        storeLog.debug("updateStreak() gen=\(myGen) dispatching — main=\(Thread.isMainThread)")
         Task {
+            // Task{} inherits @MainActor from DailyStore, so this line runs on main
+            storeLog.debug("updateStreak Task body start — gen=\(myGen) main=\(Thread.isMainThread)")
             let t0 = Date()
             let streak = await Task.detached(priority: .utility) {
+                // Task.detached runs on cooperative thread pool; main actor is free during this
                 DailyStore.computeStreak(logs: logsCopy, target: target)
             }.value
+            // Resumed on main actor — discard if a newer call has already superseded this one
+            guard self.streakGeneration == myGen else {
+                storeLog.debug("updateStreak gen=\(myGen) superseded by gen=\(self.streakGeneration), discarding")
+                return
+            }
+            storeLog.debug("updateStreak Task resumed — gen=\(myGen) main=\(Thread.isMainThread) streak=\(streak) elapsed=\(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
             self.currentStreak = streak
-            storeLog.debug("updateStreak=\(streak) in \(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
         }
     }
 
     private nonisolated static func computeStreak(logs: [LoggedMeal], target: Double) -> Int {
+        // nonisolated static — runs wherever the caller schedules it (Task.detached = background)
+        let t0 = Date()
+        let log = Logger(subsystem: "BerkeleyPlate", category: "DailyStore")
+        log.debug("computeStreak start — main=\(Thread.isMainThread) thread=\(Thread.current.name ?? "unnamed")")
         let cal = BerkeleyClock.calendar
         var date = cal.startOfDay(for: Date())
         var streak = 0
@@ -250,6 +267,7 @@ final class DailyStore {
             if abs(calories - target) / target <= 0.05 { streak += 1 } else { break }
             date = cal.date(byAdding: .day, value: -1, to: date) ?? date
         }
+        log.debug("computeStreak end — main=\(Thread.isMainThread) streak=\(streak) elapsed=\(Date().timeIntervalSince(t0) * 1000, format: .fixed(precision: 1))ms")
         return streak
     }
 

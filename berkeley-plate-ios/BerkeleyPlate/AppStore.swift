@@ -178,6 +178,17 @@ final class AppStore {
         UserDefaults.standard.set(meals.map(\.rawValue), forKey: "availMeals-\(hall.rawValue)-\(date)")
     }
 
+    /// Fetch available meal periods for any hall, using UserDefaults cache when warm.
+    /// Called by CreatePlanSheet to pre-load all halls when the sheet opens.
+    func cachedOrFetchMeals(for hall: Hall, date: String) async -> [Meal]? {
+        if let cached = cachedAvailableMeals(hall: hall, date: date) { return cached }
+        do {
+            let meals = try await fetchAvailableMeals(hall: hall, date: date, timeout: 6)
+            cacheAvailableMeals(meals, hall: hall, date: date)
+            return meals
+        } catch { return nil }
+    }
+
     private func fetchAvailableMeals(hall: Hall, date: String, timeout: TimeInterval = 4) async throws -> [Meal] {
         let result = try await api.send(
             path: "v1/available-meals",

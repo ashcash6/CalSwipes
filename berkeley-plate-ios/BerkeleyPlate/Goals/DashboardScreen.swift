@@ -233,7 +233,7 @@ private struct GoalProgressCard: View {
                 .foregroundStyle(CP.textSec)
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CPPressStyle())
         }
         .cpCard(CP.sp20)
     }
@@ -261,7 +261,7 @@ private struct SimpleCalorieCard: View {
                     .foregroundStyle(CP.textSec.opacity(0.6)).padding(.top, 2)
                 }
             }
-            .buttonStyle(.plain).frame(maxWidth: .infinity)
+            .buttonStyle(CPPressStyle()).frame(maxWidth: .infinity)
 
             CPPrimaryButton(title: "Set a calorie goal", action: onSetGoal)
         }
@@ -293,14 +293,14 @@ private struct LoggedMealRow: View {
                     Image(systemName: "pencil.circle.fill")
                         .foregroundStyle(CP.textSec).font(.title3)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CPPressStyle())
                 .accessibilityLabel("Edit meal")
 
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(CP.textSec).font(.title3)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CPPressStyle())
                 .accessibilityLabel("Remove meal")
             }
         }

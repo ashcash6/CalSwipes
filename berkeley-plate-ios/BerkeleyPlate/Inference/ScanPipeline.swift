@@ -68,6 +68,7 @@ struct ScanResult {
     let isVisionClassified: Bool
     let isGenericFallback: Bool
     let isGeminiClassified: Bool
+    let isNonDiningHallEstimate: Bool
     let menuRevision: String
 }
 
@@ -81,7 +82,7 @@ protocol PortionEstimating {
     func estimate(_ regions: [FoodRegion], matches: [RegionMatch], photo: CapturedPhoto, menu: MenuEnvelope) async throws -> [EstimatedServing]
 }
 protocol ScanAnalyzing {
-    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>,
+    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, isDiningHall: Bool,
                  progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult
 }
 
@@ -96,7 +97,7 @@ actor ScanPipeline: ScanAnalyzing {
         self.portions = portions
     }
 
-    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>,
+    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, isDiningHall: Bool = true,
                  progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult {
         try Self.validateMenu(menu, capturedAt: photo.capturedAt)
         try Task.checkCancellation()
@@ -182,14 +183,14 @@ enum NutritionMath {
         }) else { throw PipelineFailure.invalidOutput }
         return ScanResult(lines: lines, total: total, lower: lower, upper: upper,
                           isDemo: false, isVisionClassified: false, isGenericFallback: false,
-                          isGeminiClassified: false, menuRevision: menu.revision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menu.revision)
     }
 }
 
 #if DEBUG
 /// An explicit interface fixture. It does not inspect pixels, identify food or estimate portions.
 struct DemoScanPipeline: ScanAnalyzing {
-    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>,
+    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, isDiningHall: Bool = true,
                  progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult {
         try ScanPipeline.validateMenu(menu, capturedAt: photo.capturedAt)
         await progress("Preparing example results — no photo analysis…")
@@ -200,7 +201,7 @@ struct DemoScanPipeline: ScanAnalyzing {
         let example = try NutritionMath.result(estimates, menu: menu)
         return ScanResult(lines: example.lines, total: example.total, lower: nil, upper: nil,
                           isDemo: true, isVisionClassified: false, isGenericFallback: false,
-                          isGeminiClassified: false, menuRevision: menu.revision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menu.revision)
     }
 }
 #endif

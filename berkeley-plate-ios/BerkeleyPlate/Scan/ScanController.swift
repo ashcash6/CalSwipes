@@ -37,13 +37,12 @@ final class ScanController: ObservableObject {
         self.segmenter = segmenter
     }
 
-    func accept(_ photo: CapturedPhoto) {
+    func accept(_ photo: CapturedPhoto, isDiningHall: Bool) {
         guard phase == .camera else { return }
         self.photo = photo
         result = nil
         message = ""
-        // Auto-analyze immediately — no manual outline step.
-        run(pipeline, isDemo: false)
+        run(pipeline, isDemo: false, isDiningHall: isDiningHall)
     }
 
     func retake() {
@@ -72,7 +71,7 @@ final class ScanController: ObservableObject {
         if photo != nil { phase = .review }
     }
 
-    func analyze() { run(pipeline, isDemo: false) }
+    func analyze(isDiningHall: Bool = true) { run(pipeline, isDemo: false, isDiningHall: isDiningHall) }
 
     private func clearSegmentation() {
         candidates = []; points = []; foods = []; plate = nil
@@ -133,10 +132,10 @@ final class ScanController: ObservableObject {
     }
 
     #if DEBUG
-    func previewDemo() { run(DemoScanPipeline(), isDemo: true) }
+    func previewDemo() { run(DemoScanPipeline(), isDemo: true, isDiningHall: true) }
     #endif
 
-    private func run(_ selectedPipeline: any ScanAnalyzing, isDemo: Bool) {
+    private func run(_ selectedPipeline: any ScanAnalyzing, isDemo: Bool, isDiningHall: Bool = true) {
         guard let photo, phase != .processing else { return }
         task?.cancel()
         let current = UUID()
@@ -149,7 +148,7 @@ final class ScanController: ObservableObject {
         let expected = request.expected
         task = Task { [weak self] in
             do {
-                let result = try await selectedPipeline.analyze(photo: photo, menu: menu, expected: expected) { [weak self] progress in
+                let result = try await selectedPipeline.analyze(photo: photo, menu: menu, expected: expected, isDiningHall: isDiningHall) { [weak self] progress in
                     await MainActor.run {
                         guard let self, self.generation == current else { return }
                         self.message = progress

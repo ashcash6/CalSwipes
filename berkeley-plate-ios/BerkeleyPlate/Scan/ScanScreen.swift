@@ -9,6 +9,7 @@ struct ScanScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     let onLog: ((ScanResult) -> Void)?
     @State private var logged = false
+    @State private var isDiningHall = true
 
     init(request: ScanRequest, onLog: ((ScanResult) -> Void)? = nil) {
         _controller = StateObject(wrappedValue: ScanController(request: request))
@@ -35,7 +36,7 @@ struct ScanScreen: View {
             }
             .onChange(of: camera.photo?.id) { _, _ in
                 if let photo = camera.photo {
-                    controller.accept(photo)
+                    controller.accept(photo, isDiningHall: isDiningHall)
                     camera.stop()
                 }
             }
@@ -79,6 +80,20 @@ struct ScanScreen: View {
             .accessibilityLabel("Rear camera preview")
             Text("Your photo stays on this iPhone.")
                 .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Food from dining hall?")
+                        .font(.subheadline.weight(.medium))
+                    Text(isDiningHall ? "AI will match items from today's menu" : "AI will estimate macros freely")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Toggle("", isOn: $isDiningHall)
+                    .labelsHidden()
+                    .tint(PlateStyle.green)
+            }
+            .padding(.horizontal, 4)
             Button { camera.capture() } label: {
                 Label(camera.status == .capturing ? "Capturing…" : "Take photo", systemImage: "camera.fill")
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
@@ -181,6 +196,9 @@ struct ScanScreen: View {
             demoNotice
             Text("These are the published macros for one serving of each preselected item. No portions or confidence range were estimated.")
                 .font(.subheadline).foregroundStyle(.secondary)
+        } else if result.isNonDiningHallEstimate {
+            Label("AI estimate — food outside dining hall", systemImage: "fork.knife.circle")
+                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
         } else if result.isGenericFallback {
             Label("Generic estimate — food not found in today's menu", systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.medium)).foregroundStyle(.orange)

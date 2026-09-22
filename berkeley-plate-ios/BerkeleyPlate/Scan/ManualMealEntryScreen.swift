@@ -97,12 +97,12 @@ struct ManualMealEntryScreen: View {
                 if activeField != nil {
                     EntryNumpad(canLog: canLog,
                                 onKey: handleKey,
-                                onDone: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { activeField = nil } },
+                                onDone: { withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) { activeField = nil } },
                                 onLog: logTapped)
                         .transition(.move(edge: .bottom))
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: activeField)
+            .animation(.spring(response: 0.2, dampingFraction: 0.85), value: activeField)
             .background(PlateStyle.cream)
             .navigationTitle("Log meal manually")
             .navigationBarTitleDisplayMode(.inline)
@@ -167,7 +167,7 @@ struct ManualMealEntryScreen: View {
         store.logManualMeal(name: name.isEmpty ? "Manual entry" : name, macros: macros)
         withAnimation { logged = true }
         activeField = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { dismiss() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { dismiss() }
     }
 }
 

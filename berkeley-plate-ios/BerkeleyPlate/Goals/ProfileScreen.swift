@@ -73,7 +73,7 @@ struct ProfileScreen: View {
                     .padding(.horizontal, CP.sp12)
                     .padding(.vertical, CP.sp8)
                     .background(CP.navy.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r8))
-                    .buttonStyle(.plain)
+                    .buttonStyle(CPPressStyle())
             }
 
             if let goal = daily.goal {
@@ -120,7 +120,8 @@ struct ProfileScreen: View {
                     showRecurringFoods = true
                 }
                 Divider().padding(.leading, 52)
-                ProfileRow(icon: "scalemass.fill", label: "Weight tracking") {
+                ProfileRow(icon: "scalemass.fill", label: "Weight tracking",
+                           badge: !daily.weightEntries.contains { $0.date == BerkeleyClock.serviceDate() }) {
                     showWeight = true
                 }
             }
@@ -160,15 +161,24 @@ private struct ProfileRow: View {
     let icon: String
     let label: String
     var value: String? = nil
+    var badge: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: CP.sp12) {
-                Image(systemName: icon)
-                    .font(.body)
-                    .foregroundStyle(CP.navy)
-                    .frame(width: 28)
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: icon)
+                        .font(.body)
+                        .foregroundStyle(CP.navy)
+                        .frame(width: 28)
+                    if badge {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 4, y: -3)
+                    }
+                }
                 Text(label)
                     .font(.body)
                 Spacer()
@@ -185,6 +195,6 @@ private struct ProfileRow: View {
             .padding(.vertical, CP.sp14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CPPressStyle())
     }
 }

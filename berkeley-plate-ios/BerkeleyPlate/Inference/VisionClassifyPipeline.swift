@@ -8,7 +8,7 @@ import Vision
 /// user always gets an estimate rather than an error.
 /// No network calls, no model download, no LiDAR required.
 actor VisionClassifyPipeline: ScanAnalyzing {
-    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>,
+    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, isDiningHall: Bool = true,
                  progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult {
         try ScanPipeline.validateMenu(menu, capturedAt: photo.capturedAt)
         try Task.checkCancellation()
@@ -89,7 +89,7 @@ actor VisionClassifyPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: lines, total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: true, isGenericFallback: false,
-                          isGeminiClassified: false, menuRevision: menuRevision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menuRevision)
     }
 
     // MARK: - Generic fallback
@@ -129,7 +129,7 @@ actor VisionClassifyPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: [line], total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: true, isGenericFallback: true,
-                          isGeminiClassified: false, menuRevision: menuRevision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menuRevision)
     }
 }
 

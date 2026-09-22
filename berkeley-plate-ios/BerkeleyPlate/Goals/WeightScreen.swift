@@ -18,6 +18,7 @@ struct WeightScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: CP.sp16) {
                     heroHeader
+                    if let goal = daily.goal { goalProgressBanner(goal: goal) }
                     if todayEntry == nil { reminderBanner }
                     WeightInputCard(todayEntry: todayEntry, onSave: { daily.logWeight($0) })
                     if !daily.recentWeightEntries.isEmpty {
@@ -73,6 +74,44 @@ struct WeightScreen: View {
             Spacer()
         }
         .padding(.top, CP.sp8)
+    }
+
+    // MARK: - Goal Progress
+
+    @ViewBuilder
+    private func goalProgressBanner(goal: UserGoal) -> some View {
+        if let targetLbs = goal.targetWeightLbs,
+           goal.weeklyRateLbs > 0,
+           let currentLbs = daily.recentWeightEntries.last?.weightLbs {
+            let lbsToGo: Double? = {
+                switch goal.goalType {
+                case .lose:     return targetLbs < currentLbs ? currentLbs - targetLbs : nil
+                case .gain:     return targetLbs > currentLbs ? targetLbs - currentLbs : nil
+                case .maintain: return nil
+                }
+            }()
+            if let lbsToGo,
+               let targetDate = Calendar.current.date(
+                   byAdding: .day, value: Int((lbsToGo / goal.weeklyRateLbs) * 7), to: Date()) {
+                HStack(spacing: CP.sp14) {
+                    Image(systemName: "flag.checkered")
+                        .font(.title3)
+                        .foregroundStyle(CP.navy)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Target: \(goal.goalType == .lose ? "lose" : "gain") to \(Int(targetLbs)) lbs")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(CP.text)
+                        Text(String(format: "%.1f lbs to go at %.1f lb/week", lbsToGo, goal.weeklyRateLbs))
+                            .font(.caption).foregroundStyle(CP.textSec)
+                        Text("Est. \(targetDate.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption.weight(.medium)).foregroundStyle(CP.navy)
+                    }
+                    Spacer()
+                }
+                .padding(CP.sp16)
+                .background(CP.navy.opacity(0.06), in: RoundedRectangle(cornerRadius: CP.r16))
+            }
+        }
     }
 
     // MARK: - Reminder
@@ -246,7 +285,7 @@ struct WeightScreen: View {
                                 .font(.title3)
                                 .foregroundStyle(CP.textSec)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CPPressStyle())
                         .padding(.leading, CP.sp8)
                         Button {
                             deletionTarget = entry
@@ -256,7 +295,7 @@ struct WeightScreen: View {
                                 .font(.title3)
                                 .foregroundStyle(CP.textSec)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CPPressStyle())
                         .padding(.leading, CP.sp4)
                     }
                     .padding(.horizontal, CP.sp20)
@@ -385,6 +424,7 @@ private struct WeightEditSheet: View {
     let onSave: (Double) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var inputText: String
+    @FocusState private var fieldFocused: Bool
 
     init(entry: WeightEntry, onSave: @escaping (Double) -> Void) {
         self.entry  = entry
@@ -406,11 +446,13 @@ private struct WeightEditSheet: View {
                         TextField("165.5", text: $inputText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
+                            .focused($fieldFocused)
                     }
                 }
             }
             .navigationTitle("Edit Entry")
             .navigationBarTitleDisplayMode(.inline)
+            .task { fieldFocused = true }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

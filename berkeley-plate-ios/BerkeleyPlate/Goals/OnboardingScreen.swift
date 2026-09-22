@@ -8,29 +8,13 @@ struct OnboardingScreen: View {
     @State private var showManualEntry = false
     @State private var step: Int
     @State private var goalType: GoalType
-    @State private var pace: Pace
+    @State private var weeklyRateLbs: Double
+    @State private var targetWeightText: String
     @State private var heightIn: Double
     @State private var weightLbs: Double
     @State private var activityLevel: ActivityLevel
     @State private var allergens: Set<String>
     @State private var dietaryTags: Set<String>
-
-    // Recurring foods step (step 5, initial setup only)
-    @State private var recurringPresets: [RecurringFood] = OnboardingScreen.defaultPresets
-    @State private var enabledPresetIds: Set<UUID> = []
-    @State private var editingPreset: RecurringFood?
-
-    static let defaultPresets: [RecurringFood] = [
-        RecurringFood(id: UUID(), name: "Protein Shake", calories: 160, proteinG: 30,
-                      carbsG: 8, fatG: 3, servingDescription: "1 shake",
-                      typicalMeal: .breakfast, defaultEnabled: true),
-        RecurringFood(id: UUID(), name: "Protein Bar", calories: 200, proteinG: 20,
-                      carbsG: 22, fatG: 7, servingDescription: "1 bar",
-                      typicalMeal: nil, defaultEnabled: true),
-        RecurringFood(id: UUID(), name: "Greek Yogurt", calories: 130, proteinG: 17,
-                      carbsG: 9, fatG: 4, servingDescription: "1 cup (227g)",
-                      typicalMeal: .breakfast, defaultEnabled: true),
-    ]
 
     init(store: DailyStore, editMode: Bool = false) {
         self.store = store
@@ -38,7 +22,8 @@ struct OnboardingScreen: View {
         let goal = store.goal
         self._step = State(initialValue: 0)
         self._goalType = State(initialValue: goal?.goalType ?? .maintain)
-        self._pace = State(initialValue: goal?.pace ?? .medium)
+        self._weeklyRateLbs = State(initialValue: goal?.weeklyRateLbs ?? 1.0)
+        self._targetWeightText = State(initialValue: goal?.targetWeightLbs.map { "\(Int($0))" } ?? "")
         self._heightIn = State(initialValue: goal?.heightIn ?? 68)
         self._weightLbs = State(initialValue: goal?.weightLbs ?? 160)
         self._activityLevel = State(initialValue: goal?.activityLevel ?? .moderate)
@@ -46,7 +31,8 @@ struct OnboardingScreen: View {
         self._dietaryTags = State(initialValue: Set(goal?.dietaryTags ?? []))
     }
 
-    private var skipsPace: Bool { goalType == .maintain }
+    // Steps 1 and 2 (target weight + weekly rate) are skipped when maintaining.
+    private var skipGoalSteps: Bool { goalType == .maintain }
 
     var body: some View {
         NavigationStack {
@@ -87,13 +73,6 @@ struct OnboardingScreen: View {
             }
         }
         .tint(PlateStyle.green)
-        .sheet(item: $editingPreset) { preset in
-            EditRecurringFoodSheet(food: preset) { updated in
-                if let idx = recurringPresets.firstIndex(where: { $0.id == preset.id }) {
-                    recurringPresets[idx] = updated
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -107,23 +86,79 @@ struct OnboardingScreen: View {
                                  selected: goalType == type) { goalType = type }
                 }
             } next: { goForward() }
+
         case 1:
+            // Target weight — skipped when goalType == .maintain
             OnboardingStepView(
-                title: "How quickly?",
-                subtitle: goalType == .lose ? "How fast do you want to lose?" : "How fast do you want to gain?"
+                title: "What's your target weight?",
+                subtitle: "Optional — used to estimate when you'll reach your goal."
             ) {
-                ForEach(Pace.allCases) { p in
-                    SelectionRow(title: p.title, subtitle: p.subtitle,
-                                 selected: pace == p) { pace = p }
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        TextField("e.g. 155", text: $targetWeightText)
+                            .keyboardType(.decimalPad)
+                            .font(.system(.title3, design: .rounded, weight: .semibold))
+                            .padding(14)
+                            .background(
+                                Color(uiColor: .secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 14)
+                            )
+                            .frame(maxWidth: 130)
+                            .toolbar {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        UIApplication.shared.sendAction(
+                                            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                    }
+                                }
+                            }
+                        Text("lbs")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Skip this step if you don't have a specific weight in mind.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             } next: { goForward() }
+
         case 2:
+            // Weekly rate — skipped when goalType == .maintain
+            let rateOptions: [(Double, String, String)] = goalType == .lose ? [
+                (0.5, "Gradual",    "0.5 lb/week · ~250 kcal/day"),
+                (1.0, "Steady",     "1 lb/week · ~500 kcal/day"),
+                (1.5, "Moderate",   "1.5 lb/week · ~750 kcal/day"),
+                (2.0, "Aggressive", "2 lb/week · ~1000 kcal/day"),
+            ] : [
+                (0.5, "Gradual",    "0.5 lb/week · ~250 kcal/day"),
+                (1.0, "Steady",     "1 lb/week · ~500 kcal/day"),
+                (1.5, "Moderate",   "1.5 lb/week · ~750 kcal/day"),
+            ]
+            OnboardingStepView(
+                title: "How fast?",
+                subtitle: goalType == .lose
+                    ? "How quickly do you want to lose weight?"
+                    : "How quickly do you want to gain weight?"
+            ) {
+                ForEach(rateOptions, id: \.0) { rate, title, subtitle in
+                    SelectionRow(title: title, subtitle: subtitle,
+                                 selected: weeklyRateLbs == rate) { weeklyRateLbs = rate }
+                }
+                Text("Want full control? Tap \"Input manually\" at the top to set your exact calorie target.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            } next: { goForward() }
+
+        case 3:
             OnboardingStepView(title: "Your measurements",
                                subtitle: "Used to estimate your daily calorie needs.") {
                 HeightSlider(heightIn: $heightIn)
                 WeightSlider(weightLbs: $weightLbs)
             } next: { goForward() }
-        case 3:
+
+        case 4:
             OnboardingStepView(title: "Activity level",
                                subtitle: "How active are you on a typical week?") {
                 ForEach(ActivityLevel.allCases) { level in
@@ -131,10 +166,11 @@ struct OnboardingScreen: View {
                                  selected: activityLevel == level) { activityLevel = level }
                 }
             } next: { goForward() }
-        case 4:
+
+        default:
             OnboardingStepView(title: "Dietary preferences",
                                subtitle: "We'll highlight allergens and tags on menu items.",
-                               nextLabel: editMode ? "Save" : "Continue") {
+                               nextLabel: editMode ? "Save" : "Finish setup") {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Allergens")
@@ -150,100 +186,34 @@ struct OnboardingScreen: View {
                     }
                 }
             } next: {
-                if editMode {
-                    store.saveGoal(UserGoal(goalType: goalType, pace: pace,
-                                           heightIn: heightIn, weightLbs: weightLbs,
-                                           activityLevel: activityLevel,
-                                           allergens: allergens.sorted(),
-                                           dietaryTags: dietaryTags.sorted()))
-                    dismiss()
-                } else {
-                    goForward()
-                }
-            }
-        default:
-            // Step 5 — recurring foods (initial setup only)
-            OnboardingStepView(title: "Protein snacks",
-                               subtitle: "Foods you eat every day. Their calories are automatically deducted from your meal plan budget.",
-                               nextLabel: "Finish setup") {
-                VStack(spacing: 10) {
-                    ForEach(recurringPresets) { preset in
-                        let isEnabled = enabledPresetIds.contains(preset.id)
-                        Button {
-                            if isEnabled { enabledPresetIds.remove(preset.id) }
-                            else         { enabledPresetIds.insert(preset.id) }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: isEnabled ? "checkmark.circle.fill" : "circle")
-                                    .font(.title3)
-                                    .foregroundStyle(isEnabled ? PlateStyle.green : .secondary)
-                                    .frame(width: 32, alignment: .center)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(preset.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Text("\(Int(preset.calories)) kcal · \(Int(preset.proteinG))g protein · \(preset.servingDescription)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Button { editingPreset = preset } label: {
-                                    Image(systemName: "slider.horizontal.3")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(16)
-                            .background(
-                                isEnabled
-                                    ? PlateStyle.green.opacity(0.08)
-                                    : Color(uiColor: .secondarySystemGroupedBackground),
-                                in: RoundedRectangle(cornerRadius: 16)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(isEnabled ? PlateStyle.green : .clear, lineWidth: 1.5)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Text("You can always add or edit these in Settings.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 4)
-                }
-            } next: {
-                store.saveGoal(UserGoal(goalType: goalType, pace: pace,
-                                       heightIn: heightIn, weightLbs: weightLbs,
-                                       activityLevel: activityLevel,
-                                       allergens: allergens.sorted(),
-                                       dietaryTags: dietaryTags.sorted()))
-                let existingNames = Set(store.recurringFoods.map(\.name))
-                for preset in recurringPresets where enabledPresetIds.contains(preset.id) {
-                    if !existingNames.contains(preset.name) {
-                        store.addRecurringFood(preset)
-                    }
-                }
-                // hasCompletedOnboarding = true → parent view dismisses automatically
+                let targetWeight = Double(targetWeightText.trimmingCharacters(in: .whitespaces))
+                store.saveGoal(UserGoal(
+                    goalType: goalType, pace: .medium,
+                    heightIn: heightIn, weightLbs: weightLbs,
+                    activityLevel: activityLevel,
+                    weeklyRateLbs: weeklyRateLbs,
+                    targetWeightLbs: targetWeight,
+                    allergens: allergens.sorted(),
+                    dietaryTags: dietaryTags.sorted()
+                ))
+                if editMode { dismiss() }
+                // else: saveGoal sets hasCompletedOnboarding = true → parent dismisses automatically
             }
         }
     }
 
     private var stepDots: some View {
-        let baseCount = skipsPace ? 4 : 5
-        let count = editMode ? baseCount : baseCount + 1
-        let current: Int = {
-            if skipsPace { return step == 0 ? 0 : step - 1 }
+        let totalDots = skipGoalSteps ? 4 : 6
+        let dotIndex: Int = {
+            if skipGoalSteps { return step == 0 ? 0 : max(0, step - 2) }
             return step
         }()
         return HStack(spacing: 6) {
-            ForEach(0..<count, id: \.self) { i in
+            ForEach(0..<totalDots, id: \.self) { i in
                 Capsule()
-                    .fill(i <= current ? PlateStyle.green : Color.secondary.opacity(0.2))
+                    .fill(i <= dotIndex ? PlateStyle.green : Color.secondary.opacity(0.2))
                     .frame(height: 4)
-                    .animation(.easeInOut, value: current)
+                    .animation(.easeInOut, value: dotIndex)
             }
         }
         .padding(.horizontal, 24)
@@ -252,13 +222,13 @@ struct OnboardingScreen: View {
 
     private func goForward() {
         withAnimation(.easeInOut(duration: 0.25)) {
-            if step == 0 && skipsPace { step = 2 } else { step += 1 }
+            if step == 0 && skipGoalSteps { step = 3 } else { step += 1 }
         }
     }
 
     private func goBack() {
         withAnimation(.easeInOut(duration: 0.25)) {
-            if step == 2 && skipsPace { step = 0 } else { step -= 1 }
+            if step == 3 && skipGoalSteps { step = 0 } else { step -= 1 }
         }
     }
 }
@@ -294,10 +264,11 @@ private struct OnboardingStepView<Content: View>: View {
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CPPressStyle())
             }
             .padding(24)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 }
 
@@ -337,7 +308,7 @@ private struct SelectionRow: View {
             )
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(selected ? PlateStyle.green : .clear, lineWidth: 1.5))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CPPressStyle())
         .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
@@ -347,7 +318,6 @@ private struct SelectionRow: View {
 
 private struct HeightSlider: View {
     @Binding var heightIn: Double
-    // draft is local — slider drag only re-renders this view, not the parent
     @State private var draft: Double
     @State private var inputText: String
     @FocusState private var focused: Bool
@@ -392,6 +362,12 @@ private struct HeightSlider: View {
                         if let v = Double(val), (58...82).contains(v) {
                             draft = v
                             heightIn = v
+                        }
+                    }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { focused = false }
                         }
                     }
                 Text("inches total")
@@ -445,6 +421,12 @@ private struct WeightSlider: View {
                         if let v = Double(val), (90...400).contains(v) {
                             draft = v
                             weightLbs = v
+                        }
+                    }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { focused = false }
                         }
                     }
                 Text("lbs")

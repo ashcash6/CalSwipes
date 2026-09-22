@@ -23,6 +23,10 @@ final class CameraService: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        // Pre-configure the session eagerly so startRunning() is the only remaining work
+        // when start() is called. This runs concurrently with the fullScreenCover transition,
+        // cutting the visible "Opening camera…" delay from ~500ms to ~100ms.
+        queue.async { [weak self] in try? self?.configure() }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: AVCaptureSession.wasInterruptedNotification, object: session, queue: nil) { [weak self] _ in
             self?.publish(.interrupted)

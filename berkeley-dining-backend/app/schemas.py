@@ -102,6 +102,7 @@ class ScanMealRequest(StrictModel):
     hall: Hall
     date: date
     meal: Meal
+    from_dining_hall: bool = True
 
 
 class ScanMatchedItem(StrictModel):
@@ -115,6 +116,7 @@ class ScanMatchedItem(StrictModel):
 class ScanMealResponse(StrictModel):
     matched: list[ScanMatchedItem]
     no_match_reason: str | None = None
+    generic_macros: Macros | None = None
 
 
 class DietaryProfile(BaseModel):

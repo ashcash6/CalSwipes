@@ -10,8 +10,8 @@ struct NutritionLabelResult {
     var isComplete: Bool { calories != nil && proteinG != nil && carbsG != nil && fatG != nil }
 
     var asMacros: Macros? {
-        guard let cal = calories, let prot = proteinG, let carb = carbsG, let fat = fatG else { return nil }
-        return Macros(caloriesKcal: cal, proteinG: prot, carbsG: carb, fatG: fat)
+        guard let cal = calories else { return nil }
+        return Macros(caloriesKcal: cal, proteinG: proteinG ?? 0, carbsG: carbsG ?? 0, fatG: fatG ?? 0)
     }
 }
 

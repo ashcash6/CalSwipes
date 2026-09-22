@@ -115,12 +115,12 @@ struct ManualMacrosScreen: View {
 
             if activeField != nil {
                 MacroNumpad(canSave: canSave, onKey: handleKey,
-                            onDone: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { activeField = nil } },
+                            onDone: { withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) { activeField = nil } },
                             onSave: saveAndStay)
                     .transition(.move(edge: .bottom))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: activeField)
+        .animation(.spring(response: 0.2, dampingFraction: 0.85), value: activeField)
         .background(PlateStyle.cream)
         .navigationTitle("Manual targets")
         .navigationBarTitleDisplayMode(.inline)
@@ -168,7 +168,7 @@ struct ManualMacrosScreen: View {
 
     // Numpad Save: just closes the numpad — values stay in @State, nothing navigates
     private func saveAndStay() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { activeField = nil }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) { activeField = nil }
     }
 
     // Content "Save targets" button: commit to store and go back to the survey
