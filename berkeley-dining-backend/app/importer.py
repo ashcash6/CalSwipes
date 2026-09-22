@@ -2,7 +2,7 @@ import argparse
 import hashlib
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
@@ -73,7 +73,11 @@ def run(day=None):
     engine = make_engine(settings.database_url)
     source = BerkeleySource(settings.user_agent)
     try:
-        return import_day(engine, day or today(), source)
+        # When no date is given (scheduled cron run), import the next day so menus are
+        # ready when the app rolls over to tomorrow at 10 PM.
+        # Pass --date explicitly to import a specific date instead.
+        target = day if day is not None else today() + timedelta(days=1)
+        return import_day(engine, target, source)
     finally:
         source.close()
         engine.dispose()

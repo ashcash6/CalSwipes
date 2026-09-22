@@ -40,8 +40,8 @@ def monitor():
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     scheduler = BlockingScheduler(timezone="America/Los_Angeles", job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 3600})
-    # Nightly plus daytime retry/refresh to recover from late publication and substitutions.
-    scheduler.add_job(refresh, "cron", hour="0,3,6,9,12,15,18,21", minute=15, id="refresh")
+    # Runs at 10:00 PM PT to import the next day's menus before the app rolls over at 10 PM.
+    scheduler.add_job(refresh, "cron", hour=22, minute=0, id="refresh")
     scheduler.add_job(monitor, "interval", minutes=15, id="freshness")
     refresh()
     monitor()
