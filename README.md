@@ -19,11 +19,6 @@
 
 ---
 
-## Screenshots
-
-<!-- Drop App Store screenshots into docs/screenshots/ and update the file names below. -->
-
-
 ## What it does
 
 Berkeley Dining publishes nutrition data for every item, but it is buried and hard to act on. CalSwipes pulls that data in every few hours and answers the question students actually have: *what should I eat right now to hit my goals?*
