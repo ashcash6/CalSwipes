@@ -22,12 +22,7 @@
 ## Screenshots
 
 <!-- Drop App Store screenshots into docs/screenshots/ and update the file names below. -->
-<p align="center">
-  <img src="docs/screenshots/dashboard.png" width="200" alt="Dashboard" />
-  <img src="docs/screenshots/menu.png" width="200" alt="Dining hall menu" />
-  <img src="docs/screenshots/make-my-meal.png" width="200" alt="Make My Meal" />
-  <img src="docs/screenshots/plan-my-day.png" width="200" alt="Plan My Day" />
-</p>
+
 
 ## What it does
 
