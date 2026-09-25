@@ -1,7 +1,7 @@
 import SwiftUI
 import os
 
-private let menuLog = Logger(subsystem: "BerkeleyPlate", category: "MenuScreen")
+private let menuLog = Logger(subsystem: "CalSwipes", category: "MenuScreen")
 
 enum PlateStyle {
     static let green = CP.navy
@@ -197,7 +197,8 @@ struct MenuScreen: View {
                     meal: store.selectedMeal,
                     goal: daily.goal,
                     budget: budget,
-                    excluding: []
+                    excluding: [],
+                    fixedPortions: !store.selectedHall.isDiningHall
                 )
                 mealSuggestionRequest = MealSuggestionRequest(
                     combos: combos,
@@ -491,7 +492,7 @@ struct MealSuggestionSheet: View {
 
 // MARK: - Macro Diagram Bar
 
-private struct MacroDiagramBar: View {
+struct MacroDiagramBar: View {
     let macros: PlanMacros
 
     var body: some View {

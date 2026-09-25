@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import os
 
-private let storeLog = Logger(subsystem: "BerkeleyPlate", category: "DailyStore")
+private let storeLog = Logger(subsystem: "CalSwipes", category: "DailyStore")
 
 @Observable @MainActor
 final class DailyStore {
@@ -22,8 +22,16 @@ final class DailyStore {
     private let weightKey         = "weightEntries_v1"
     private let onboardingKey     = "onboardingDone_v1"
     private let recurringFoodsKey = "recurringFoods_v1"
+    private let nickKey           = "userNickname_v1"
+
+    private(set) var nickname: String = ""
 
     init() { load() }
+
+    func saveNickname(_ name: String) {
+        nickname = name.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(nickname, forKey: nickKey)
+    }
 
     var todayDate: String { BerkeleyClock.serviceDate() }
 
@@ -88,6 +96,22 @@ final class DailyStore {
             id: UUID(), date: todayDate,
             hallTitle: "Packaged Food", mealTitle: "Label Scan",
             itemNames: [name], macros: macros, loggedAt: Date()
+        )
+        logs.append(meal)
+        updateTodayCache()
+        saveLogs()
+        updateStreak()
+    }
+
+    func logCombo(_ combo: MealCombo, hallTitle: String, mealTitle: String) {
+        let total = combo.totalMacros
+        let meal = LoggedMeal(
+            id: UUID(), date: todayDate,
+            hallTitle: hallTitle, mealTitle: mealTitle,
+            itemNames: combo.components.map { $0.itemName },
+            macros: Macros(caloriesKcal: total.caloriesKcal, proteinG: total.proteinG,
+                           carbsG: total.carbsG, fatG: total.fatG),
+            loggedAt: Date()
         )
         logs.append(meal)
         updateTodayCache()
@@ -248,7 +272,7 @@ final class DailyStore {
     private nonisolated static func computeStreak(logs: [LoggedMeal], target: Double) -> Int {
         // nonisolated static — runs wherever the caller schedules it (Task.detached = background)
         let t0 = Date()
-        let log = Logger(subsystem: "BerkeleyPlate", category: "DailyStore")
+        let log = Logger(subsystem: "CalSwipes", category: "DailyStore")
         log.debug("computeStreak start — main=\(Thread.isMainThread) thread=\(Thread.current.name ?? "unnamed")")
         let cal = BerkeleyClock.calendar
         var date = cal.startOfDay(for: Date())
@@ -290,6 +314,7 @@ final class DailyStore {
            let saved = try? JSONCoding.decoder().decode([RecurringFood].self, from: data) {
             recurringFoods = saved
         }
+        nickname = UserDefaults.standard.string(forKey: nickKey) ?? ""
         updateStreak()
     }
 

@@ -12,7 +12,7 @@ final class CameraService: NSObject, ObservableObject {
     let session = AVCaptureSession()
     @Published private(set) var status: CameraStatus = .idle
     @Published private(set) var photo: CapturedPhoto?
-    private let queue = DispatchQueue(label: "BerkeleyPlate.Camera", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "CalSwipes.Camera", qos: .userInitiated)
     private let output = AVCapturePhotoOutput()
     private var configured = false
     private var shouldRun = false

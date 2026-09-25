@@ -1,5 +1,6 @@
 Config/Local.xcconfig
 BerkeleyPlate/BerkeleyPlate/secrets.xcconfig
+CalSwipes/secrets.xcconfig
 *.xcodeproj/
 DerivedData/
 .DS_Store

@@ -103,7 +103,7 @@ struct ManualMacrosScreen: View {
                     .buttonStyle(.plain)
                     .disabled(!canSave)
 
-                    Text("These targets are only used within Berkeley Plate.")
+                    Text("These targets are only used within CalSwipes.")
                         .font(.caption).foregroundStyle(.tertiary)
                 }
                 .padding(24)

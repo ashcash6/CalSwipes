@@ -1,5 +1,5 @@
 // Copy Local.xcconfig.example to Local.xcconfig for your real values.
-APP_BUNDLE_ID = edu.example.BerkeleyPlate
+APP_BUNDLE_ID = com.ashkon.calswipes
 API_BASE_URL = https:/$()/countyourcals.onrender.com
 
 #include? "Local.xcconfig"

@@ -9,7 +9,7 @@ struct ScanScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     let onLog: ((ScanResult) -> Void)?
     @State private var logged = false
-    @State private var isDiningHall = true
+    @State private var showingCorrectionPicker = false
 
     init(request: ScanRequest, onLog: ((ScanResult) -> Void)? = nil) {
         _controller = StateObject(wrappedValue: ScanController(request: request))
@@ -22,7 +22,7 @@ struct ScanScreen: View {
                 if controller.phase == .camera { captureView }
                 else { reviewView }
             }
-            .navigationTitle(controller.phase == .camera ? "Photograph your meal" : "Your plate")
+            .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -36,7 +36,7 @@ struct ScanScreen: View {
             }
             .onChange(of: camera.photo?.id) { _, _ in
                 if let photo = camera.photo {
-                    controller.accept(photo, isDiningHall: isDiningHall)
+                    controller.accept(photo)
                     camera.stop()
                 }
             }
@@ -59,6 +59,16 @@ struct ScanScreen: View {
         .interactiveDismissDisabled(controller.phase == .processing)
     }
 
+    private var navTitle: String {
+        switch controller.phase {
+        case .camera: return "Photograph your meal"
+        case .verify: return "Confirm item"
+        default: return "Your plate"
+        }
+    }
+
+    // MARK: - Capture view
+
     private var captureView: some View {
         VStack(spacing: 18) {
             Text("\(controller.request.menu.hall.title) · \(controller.request.menu.meal.title)")
@@ -78,22 +88,8 @@ struct ScanScreen: View {
             .aspectRatio(3/4, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 22))
             .accessibilityLabel("Rear camera preview")
-            Text("Your photo stays on this iPhone.")
-                .font(.caption).foregroundStyle(.secondary)
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Food from dining hall?")
-                        .font(.subheadline.weight(.medium))
-                    Text(isDiningHall ? "AI will match items from today's menu" : "AI will estimate macros freely")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Toggle("", isOn: $isDiningHall)
-                    .labelsHidden()
-                    .tint(PlateStyle.green)
-            }
-            .padding(.horizontal, 4)
+            Text("AI matches your photo to today's menu. Photo stays on this iPhone.")
+                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Button { camera.capture() } label: {
                 Label(camera.status == .capturing ? "Capturing…" : "Take photo", systemImage: "camera.fill")
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
@@ -129,6 +125,8 @@ struct ScanScreen: View {
         .padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
     }
 
+    // MARK: - Review / result view
+
     private var reviewView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -143,6 +141,8 @@ struct ScanScreen: View {
                     ProgressView(controller.message).frame(maxWidth: .infinity).padding(40)
                     if controller.demoActive { demoNotice }
                     Button("Cancel") { controller.cancel() }.buttonStyle(.bordered)
+                case .verify:
+                    if let result = controller.result { verifyView(result) }
                 case .result:
                     if let result = controller.result { resultView(result) }
                     retakeButton
@@ -162,6 +162,170 @@ struct ScanScreen: View {
         }
         .background(PlateStyle.cream)
     }
+
+    // MARK: - Verify phase
+
+    @ViewBuilder
+    private func verifyView(_ result: ScanResult) -> some View {
+        let isAsk = result.confidenceTier == "ask"
+        Label(
+            isAsk ? "AI wasn't sure — please select the correct item" : "AI thinks this is correct — confirm or change",
+            systemImage: isAsk ? "questionmark.circle" : "checkmark.seal"
+        )
+        .font(.headline)
+        .foregroundStyle(isAsk ? .orange : PlateStyle.green)
+
+        if !isAsk {
+            Text("Confidence: fairly certain. Tap to confirm or choose a different item below.")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+
+        // All candidates — primary items + alternatives flattened and deduplicated
+        let allOptions: [(MenuItem, Double)] = {
+            var seen = Set<String>()
+            var list: [(MenuItem, Double)] = []
+            for cand in result.candidates {
+                if seen.insert(cand.primaryItem.id).inserted {
+                    list.append((cand.primaryItem, cand.confidence))
+                }
+                for alt in cand.alternatives {
+                    if seen.insert(alt.item.id).inserted {
+                        list.append((alt.item, alt.confidence))
+                    }
+                }
+            }
+            return list.sorted { $0.1 > $1.1 }
+        }()
+
+        Text("Today's menu matches").font(.subheadline.weight(.semibold))
+        ForEach(allOptions, id: \.0.id) { item, confidence in
+            Button {
+                controller.confirmVerification(itemId: item.id)
+                logged = false
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.name).font(.headline).foregroundStyle(.primary)
+                        if let macros = item.macros {
+                            Text("\(macros.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal · \(macros.proteinG.formatted(.number.precision(.fractionLength(0...1)))) g protein")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Text("\(Int(confidence * 100))%")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(confidence >= 0.9 ? PlateStyle.green : confidence >= 0.7 ? .orange : .secondary)
+                }
+                .padding()
+                .background(.background, in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+
+        Button("None of these — retake photo") {
+            controller.rejectVerification()
+            camera.discardPhoto()
+            camera.start()
+        }
+        .buttonStyle(.bordered)
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Result view
+
+    @ViewBuilder
+    private func resultView(_ result: ScanResult) -> some View {
+        if result.isDemo {
+            demoNotice
+            Text("These are the published macros for one serving of each preselected item. No portions or confidence range were estimated.")
+                .font(.subheadline).foregroundStyle(.secondary)
+        } else if result.isGenericFallback {
+            Label("Generic estimate — food not found in today's menu", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.medium)).foregroundStyle(.orange)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+        } else if result.isGeminiClassified {
+            Label("Matched to today's menu with AI", systemImage: "sparkles")
+                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
+        } else if result.isVisionClassified {
+            Label("Identified from photo on this iPhone", systemImage: "camera.viewfinder")
+                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
+        }
+        Text(result.isDemo ? "Example total" : "Estimated total").font(.headline)
+        Text("\(result.total.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
+            .font(.system(.largeTitle, design: .rounded, weight: .bold)).foregroundStyle(PlateStyle.green)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Protein \(result.total.proteinG.formatted(.number.precision(.fractionLength(0...1)))) g")
+            Text("Carbs \(result.total.carbsG.formatted(.number.precision(.fractionLength(0...1)))) g")
+            Text("Fat \(result.total.fatG.formatted(.number.precision(.fractionLength(0...1)))) g")
+        }.font(.subheadline)
+        ForEach(result.lines) { line in
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(line.item.name).font(.headline)
+                    Text("1 published serving").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("\(line.macros.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal").font(.subheadline)
+            }
+            .padding().background(.background, in: RoundedRectangle(cornerRadius: 14))
+        }
+        if result.isGeminiClassified && !result.isDemo {
+            wrongItemButton(result)
+        }
+        if let onLog, !result.isDemo {
+            if !logged {
+                Button {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    onLog(result)
+                    withAnimation { logged = true }
+                } label: {
+                    Label("Log this meal", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(PlateStyle.green)
+                    Text("Meal logged!").font(.headline).foregroundStyle(PlateStyle.green)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(PlateStyle.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+            }
+        } else {
+            Text("Photo stays on this iPhone.").font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - "Wrong item?" correction button
+
+    @ViewBuilder
+    private func wrongItemButton(_ result: ScanResult) -> some View {
+        let menuItems = controller.request.menu.items.filter { $0.macros != nil && $0.nutritionStatus == "published" }
+        let currentIds = Set(result.lines.map(\.item.id))
+        if !menuItems.isEmpty {
+            Menu {
+                ForEach(menuItems.prefix(20)) { item in
+                    if !currentIds.contains(item.id) {
+                        Button(item.name) {
+                            if let original = result.lines.first?.item.id {
+                                controller.reportCorrection(originalItemId: original, correctedItemId: item.id)
+                                logged = false
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label("Wrong item?", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Shared components
 
     private var retakeButton: some View {
         Button("Retake photo") {
@@ -188,80 +352,5 @@ struct ScanScreen: View {
             .font(.subheadline.bold()).foregroundStyle(.orange)
             .padding().frame(maxWidth: .infinity, alignment: .leading)
             .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-    }
-
-    @ViewBuilder
-    private func resultView(_ result: ScanResult) -> some View {
-        if result.isDemo {
-            demoNotice
-            Text("These are the published macros for one serving of each preselected item. No portions or confidence range were estimated.")
-                .font(.subheadline).foregroundStyle(.secondary)
-        } else if result.isNonDiningHallEstimate {
-            Label("AI estimate — food outside dining hall", systemImage: "fork.knife.circle")
-                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
-        } else if result.isGenericFallback {
-            Label("Generic estimate — food not found in today's menu", systemImage: "exclamationmark.triangle.fill")
-                .font(.subheadline.weight(.medium)).foregroundStyle(.orange)
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-        } else if result.isGeminiClassified {
-            Label("Identified from photo with AI", systemImage: "sparkles")
-                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
-        } else if result.isVisionClassified {
-            Label("Identified from photo on this iPhone", systemImage: "camera.viewfinder")
-                .font(.subheadline.weight(.medium)).foregroundStyle(PlateStyle.green)
-        }
-        Text(result.isDemo ? "Example total" : "Estimated total").font(.headline)
-        Text("\(result.total.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
-            .font(.system(.largeTitle, design: .rounded, weight: .bold)).foregroundStyle(PlateStyle.green)
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Protein \(result.total.proteinG.formatted(.number.precision(.fractionLength(0...1)))) g")
-            Text("Carbs \(result.total.carbsG.formatted(.number.precision(.fractionLength(0...1)))) g")
-            Text("Fat \(result.total.fatG.formatted(.number.precision(.fractionLength(0...1)))) g")
-        }.font(.subheadline)
-        if !result.isDemo, let lower = result.lower, let upper = result.upper {
-            Text("Portion range: \(lower.caloriesKcal.formatted(.number.precision(.fractionLength(0))))–\(upper.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal")
-                .font(.footnote).foregroundStyle(.secondary)
-        }
-        if result.isVisionClassified && !result.isGeminiClassified {
-            Text("Values are per published serving. Portion size is not measured.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-        ForEach(result.lines) { line in
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(line.item.name).font(.headline)
-                    Text("\(line.multiplier.formatted()) × published serving").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(line.macros.caloriesKcal.formatted(.number.precision(.fractionLength(0)))) kcal").font(.subheadline)
-            }
-            .padding().background(.background, in: RoundedRectangle(cornerRadius: 14))
-        }
-        if let onLog, !result.isDemo {
-            if !logged {
-                Button {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    onLog(result)
-                    withAnimation { logged = true }
-                } label: {
-                    Label("Log this meal", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(PlateStyle.green)
-                    Text("Meal logged!").font(.headline).foregroundStyle(PlateStyle.green)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(PlateStyle.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-            }
-        } else {
-            Text("Photo stays on this iPhone.").font(.footnote).foregroundStyle(.secondary)
-        }
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 import os
 
-private let dietLog = Logger(subsystem: "BerkeleyPlate", category: "DietaryRestrictions")
+private let dietLog = Logger(subsystem: "CalSwipes", category: "DietaryRestrictions")
 
 struct DietaryRestrictionsScreen: View {
     private let store: DailyStore

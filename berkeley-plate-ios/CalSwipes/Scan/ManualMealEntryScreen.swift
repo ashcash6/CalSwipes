@@ -12,6 +12,7 @@ struct ManualMealEntryScreen: View {
     @State private var activeField: MacroField?
     @State private var clearOnNextInput = false
     @State private var logged = false
+    @FocusState private var nameFieldFocused: Bool
 
     private enum MacroField { case calories, protein, carbs, fat }
 
@@ -46,11 +47,16 @@ struct ManualMealEntryScreen: View {
                                 .textFieldStyle(.roundedBorder)
                                 .font(.body)
                                 .submitLabel(.done)
+                                .focused($nameFieldFocused)
+                                .onChange(of: nameFieldFocused) { _, focused in
+                                    if focused {
+                                        withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) {
+                                            activeField = nil
+                                        }
+                                    }
+                                }
                                 .onSubmit {
-                                    UIApplication.shared.sendAction(
-                                        #selector(UIResponder.resignFirstResponder),
-                                        to: nil, from: nil, for: nil
-                                    )
+                                    nameFieldFocused = false
                                 }
                         }
 

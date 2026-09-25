@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Berkeley Plate</string>
+	<string>CalSwipes</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -19,13 +19,21 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.4.0</string>
+	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>1</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Photograph your meal to estimate its portions and nutrition on this iPhone.</string>
+	<string>CalSwipes uses your camera to photograph and identify food on your plate.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Berkeley Plate uses your location to automatically detect which dining hall you're in.</string>
+	<string>CalSwipes uses your location to automatically detect which dining hall you're in.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).menu-prefetch</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

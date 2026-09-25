@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import os
 
-private let planLog = Logger(subsystem: "BerkeleyPlate", category: "PlanStore")
+private let planLog = Logger(subsystem: "CalSwipes", category: "PlanStore")
 // Bumped to v2 after data model change (PlanSlot.recommendations → mealOptions).
 // Old v1 plans stored in UserDefaults are silently ignored and not migrated.
 private let planDefaultsPrefix = "localPlan_v2_"
@@ -268,7 +268,8 @@ final class PlanStore {
                     meal: key.meal,
                     goal: goal,
                     budget: perSlotBudget,
-                    excluding: excluding
+                    excluding: excluding,
+                    fixedPortions: !key.hall.isDiningHall
                 )
                 updated.slots[i].mealOptions = options
                 // Mark these items as used so subsequent same-period slots avoid them
@@ -311,7 +312,8 @@ final class PlanStore {
                 meal: key.meal,
                 goal: goal,
                 budget: perSlotBudget,
-                excluding: excluding
+                excluding: excluding,
+                fixedPortions: !key.hall.isDiningHall
             )
             plan = updated
             saveToDefaults()

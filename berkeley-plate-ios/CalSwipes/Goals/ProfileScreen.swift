@@ -10,6 +10,8 @@ struct ProfileScreen: View {
     @State private var showAbout = false
     @State private var showAppearancePicker = false
     @AppStorage("appearancePref") private var appearancePref = "system"
+    @State private var nameText: String = ""
+    @FocusState private var nameFocused: Bool
 
     private var appearanceLabel: String {
         switch appearancePref {
@@ -23,6 +25,7 @@ struct ProfileScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: CP.sp16) {
+                    nameCard
                     goalCard
                     actionsSection
                     appSection
@@ -32,6 +35,18 @@ struct ProfileScreen: View {
             .background(CP.bg)
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { nameText = daily.nickname }
+            .toolbar {
+                if nameFocused {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") {
+                            daily.saveNickname(nameText)
+                            nameFocused = false
+                        }
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showGoalSheet) {
             OnboardingScreen(store: daily, editMode: true)
@@ -47,6 +62,40 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showAbout) {
             AboutView()
+        }
+    }
+
+    // MARK: - Name card
+
+    private var nameCard: some View {
+        VStack(alignment: .leading, spacing: CP.sp8) {
+            CPSectionLabel(text: "Your name")
+            HStack(spacing: CP.sp12) {
+                Image(systemName: "person.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(CP.navy.opacity(0.5))
+                TextField("First name or nickname (optional)", text: $nameText)
+                    .textContentType(.givenName)
+                    .focused($nameFocused)
+                    .onSubmit { daily.saveNickname(nameText) }
+                    .onChange(of: nameFocused) { _, focused in
+                        if !focused { daily.saveNickname(nameText) }
+                    }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            if nameFocused {
+                                Spacer()
+                                Button("Done") { nameFocused = false }
+                            }
+                        }
+                    }
+            }
+            .padding(CP.sp14)
+            .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r12))
+            .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
+            Text("Used in your daily greeting on the Today tab.")
+                .font(.caption)
+                .foregroundStyle(CP.textSec)
         }
     }
 

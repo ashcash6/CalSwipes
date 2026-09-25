@@ -15,6 +15,8 @@ struct OnboardingScreen: View {
     @State private var activityLevel: ActivityLevel
     @State private var allergens: Set<String>
     @State private var dietaryTags: Set<String>
+    @State private var name: String
+    @FocusState private var nameFocused: Bool
 
     init(store: DailyStore, editMode: Bool = false) {
         self.store = store
@@ -29,6 +31,7 @@ struct OnboardingScreen: View {
         self._activityLevel = State(initialValue: goal?.activityLevel ?? .moderate)
         self._allergens = State(initialValue: Set(goal?.allergens ?? []))
         self._dietaryTags = State(initialValue: Set(goal?.dietaryTags ?? []))
+        self._name = State(initialValue: store.nickname)
     }
 
     // Steps 1 and 2 (target weight + weekly rate) are skipped when maintaining.
@@ -85,6 +88,28 @@ struct OnboardingScreen: View {
                     SelectionRow(title: type.title, systemImage: type.systemImage,
                                  selected: goalType == type) { goalType = type }
                 }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("What should we call you? (optional)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("First name or nickname", text: $name)
+                        .textContentType(.givenName)
+                        .focused($nameFocused)
+                        .padding(12)
+                        .background(
+                            Color(uiColor: .secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                if nameFocused {
+                                    Spacer()
+                                    Button("Done") { nameFocused = false }
+                                }
+                            }
+                        }
+                }
+                .padding(.top, 4)
             } next: { goForward() }
 
         case 1:
@@ -196,6 +221,7 @@ struct OnboardingScreen: View {
                     allergens: allergens.sorted(),
                     dietaryTags: dietaryTags.sorted()
                 ))
+                store.saveNickname(name)
                 if editMode { dismiss() }
                 // else: saveGoal sets hasCompletedOnboarding = true → parent dismisses automatically
             }

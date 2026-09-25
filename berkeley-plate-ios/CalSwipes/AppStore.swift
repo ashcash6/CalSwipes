@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 import os
 
-private let appLog = Logger(subsystem: "BerkeleyPlate", category: "AppStore")
+private let appLog = Logger(subsystem: "CalSwipes", category: "AppStore")
 
 /// Task identity for MenuScreen's task(id:) modifier.
 /// Including `validated` ensures the task fires when mealValidated first becomes true.
@@ -17,6 +17,17 @@ struct MenuLoadTrigger: Hashable {
 
 @Observable @MainActor
 final class AppStore {
+    // MARK: - Paywall
+
+    /// Flip to `true` when you're ready to activate the scan paywall.
+    /// While `false` every user can scan regardless of `isPremium`.
+    static let scanPaywallActive: Bool = false
+
+    /// Whether the current user has an active premium subscription.
+    /// Currently returns `true` for everyone — wire to StoreKit when activating the paywall.
+    var isPremium: Bool { true }
+
+
     var selectedHall: Hall = .crossroads
     var selectedMeal: Meal = BerkeleyClock.suggestedMeal()
     var serviceDate = BerkeleyClock.serviceDate()
@@ -166,6 +177,14 @@ final class AppStore {
         guard meal != selectedMeal else { return }
         selectedMeal = meal
         // task(id: menuLoadTrigger) fires → loadMenu()
+    }
+
+    /// Fetch a menu for an explicit hall+meal without touching selectedHall, selectedMeal,
+    /// or store.menu. Returns nil on failure. MakeMealSheet uses this so it can own its
+    /// menu state completely independently of the global store's generation-check races.
+    func fetchMenu(hall: Hall, meal: Meal) async -> MenuEnvelope? {
+        let key = MenuKey(hall: hall, date: serviceDate, meal: meal)
+        return try? await menus.load(key).menu
     }
 
     private func cachedAvailableMeals(hall: Hall, date: String) -> [Meal]? {

@@ -59,6 +59,17 @@ struct EstimatedLine: Identifiable {
     let macros: Macros
 }
 
+struct ScanAlternative {
+    let item: MenuItem
+    let confidence: Double
+}
+
+struct ScanCandidate {
+    let primaryItem: MenuItem
+    let confidence: Double
+    let alternatives: [ScanAlternative]
+}
+
 struct ScanResult {
     let lines: [EstimatedLine]
     let total: Macros
@@ -70,6 +81,10 @@ struct ScanResult {
     let isGeminiClassified: Bool
     let isNonDiningHallEstimate: Bool
     let menuRevision: String
+    /// "auto" (≥0.90), "confirm" (0.70–0.89), "ask" (<0.70)
+    let confidenceTier: String
+    /// Non-empty when tier is "confirm" or "ask" — contains candidates for user verification.
+    let candidates: [ScanCandidate]
 }
 
 protocol Segmenting {
@@ -183,7 +198,8 @@ enum NutritionMath {
         }) else { throw PipelineFailure.invalidOutput }
         return ScanResult(lines: lines, total: total, lower: lower, upper: upper,
                           isDemo: false, isVisionClassified: false, isGenericFallback: false,
-                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menu.revision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false,
+                          menuRevision: menu.revision, confidenceTier: "auto", candidates: [])
     }
 }
 
@@ -201,7 +217,8 @@ struct DemoScanPipeline: ScanAnalyzing {
         let example = try NutritionMath.result(estimates, menu: menu)
         return ScanResult(lines: example.lines, total: example.total, lower: nil, upper: nil,
                           isDemo: true, isVisionClassified: false, isGenericFallback: false,
-                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menu.revision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false,
+                          menuRevision: menu.revision, confidenceTier: "auto", candidates: [])
     }
 }
 #endif

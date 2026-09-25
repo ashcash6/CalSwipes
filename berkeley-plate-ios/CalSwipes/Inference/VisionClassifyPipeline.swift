@@ -89,7 +89,8 @@ actor VisionClassifyPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: lines, total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: true, isGenericFallback: false,
-                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menuRevision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false,
+                          menuRevision: menuRevision, confidenceTier: "auto", candidates: [])
     }
 
     // MARK: - Generic fallback
@@ -129,7 +130,8 @@ actor VisionClassifyPipeline: ScanAnalyzing {
         }
         return ScanResult(lines: [line], total: total, lower: nil, upper: nil,
                           isDemo: false, isVisionClassified: true, isGenericFallback: true,
-                          isGeminiClassified: false, isNonDiningHallEstimate: false, menuRevision: menuRevision)
+                          isGeminiClassified: false, isNonDiningHallEstimate: false,
+                          menuRevision: menuRevision, confidenceTier: "auto", candidates: [])
     }
 }
 

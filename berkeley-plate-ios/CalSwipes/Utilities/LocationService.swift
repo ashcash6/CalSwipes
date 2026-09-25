@@ -2,7 +2,7 @@ import CoreLocation
 import Foundation
 import os
 
-private let locLog = Logger(subsystem: "BerkeleyPlate", category: "Location")
+private let locLog = Logger(subsystem: "CalSwipes", category: "Location")
 
 /// Detects the nearest Berkeley dining hall using a one-shot location fix.
 /// Defaults to nil (caller uses Crossroads) when location is unavailable,

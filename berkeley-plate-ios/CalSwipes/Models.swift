@@ -29,6 +29,14 @@ enum Hall: String, Codable, CaseIterable, Identifiable {
         case .gatewayCafe: return "Gateway Café"
         }
     }
+    /// True for all-you-care-to-eat dining halls where portion multipliers make sense.
+    /// False for cafés and markets where items are served in fixed single portions.
+    var isDiningHall: Bool {
+        switch self {
+        case .crossroads, .cafe3, .foothill, .clarkKerr: return true
+        default: return false
+        }
+    }
 }
 
 enum Meal: String, Codable, CaseIterable, Identifiable {
@@ -193,19 +201,34 @@ struct ScanMealRequest: Encodable {
     let hall: String
     let date: String
     let meal: String
-    let fromDiningHall: Bool
+}
+
+struct ScanAlternativeItem: Decodable {
+    let itemId: String
+    let itemName: String
+    let confidence: Double
 }
 
 struct ScanMatchedItem: Decodable {
     let itemId: String
     let itemName: String
     let confidence: Double
-    let portionMultiplier: Double
-    let adjustedMacros: Macros?
+    let confidenceTier: String  // "auto" | "confirm" | "ask"
+    let alternatives: [ScanAlternativeItem]
 }
 
 struct ScanMealResponse: Decodable {
     let matched: [ScanMatchedItem]
     let noMatchReason: String?
-    let genericMacros: Macros?
+}
+
+// MARK: - Scan correction
+
+struct ScanCorrectionRequest: Encodable {
+    let hall: String
+    let date: String
+    let meal: String
+    let photoHash: String
+    let originalItemId: String
+    let correctedItemId: String
 }

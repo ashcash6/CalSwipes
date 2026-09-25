@@ -38,6 +38,14 @@ actor MenuRepository {
 
     func load(_ key: MenuKey, at instant: Date = Date()) async throws -> MenuLoad {
         let cached = read(key)
+
+        // Cache-first: if the stored menu is still valid, return it immediately without
+        // touching the network. Dining hall menus are stable once published, so there's
+        // no benefit to re-validating until the menu actually expires.
+        if let cached, cached.menu.isFresh(at: instant) {
+            return MenuLoad(menu: cached.menu, isOffline: false, cacheSaved: true)
+        }
+
         do {
             let result = try await api.send(
                 path: "v1/menu",
