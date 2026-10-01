@@ -23,9 +23,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>2.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CalSwipes uses your camera to photograph and identify food on your plate.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
