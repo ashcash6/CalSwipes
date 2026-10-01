@@ -9,6 +9,13 @@ enum PlateStyle {
     static let gold  = Color(red: 0.88, green: 0.66, blue: 0.25)
 }
 
+private enum MacroFilter: String, CaseIterable {
+    case all = "All"
+    case protein = "Protein"
+    case carbs = "Carbs"
+    case greens = "Greens"
+}
+
 struct MenuScreen: View {
     var store: AppStore
     var daily: DailyStore
@@ -16,6 +23,7 @@ struct MenuScreen: View {
     @State private var aboutPresented = false
     @State private var search = ""
     @State private var mealSuggestionRequest: MealSuggestionRequest?
+    @State private var macroFilter: MacroFilter = .all
 
     private func dietaryFiltered(_ items: [MenuItem]) -> [MenuItem] {
         guard let goal = daily.goal,
@@ -91,6 +99,11 @@ struct MenuScreen: View {
                 }
                 .padding(CP.sp20)
             }
+            .scrollDismissesKeyboard(.immediately)
+            .simultaneousGesture(TapGesture().onEnded {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            })
             .background(CP.bg)
             .navigationTitle("CalPlate")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,6 +119,7 @@ struct MenuScreen: View {
                 menuLog.info("task(id: menuLoadTrigger) fired — key=\(self.store.key.cacheName) mealValidated=\(self.store.mealValidated) version=\(self.store.loadVersion)")
                 guard store.mealValidated else { return }
                 search = ""
+                macroFilter = .all
                 await store.loadMenu()
             }
             .sheet(isPresented: $aboutPresented) { AboutView() }
@@ -124,7 +138,9 @@ struct MenuScreen: View {
                     get: { store.selectedHall },
                     set: { hall in Task { await store.selectHall(hall) } }
                 )) {
-                    ForEach(Hall.allCases) { hall in Text(hall.title).tag(hall) }
+                    ForEach(Hall.allCases.filter { $0 != .theDen && $0 != .cubMarket && $0 != .bearMarket }) { hall in
+                        Text(hall.title).tag(hall)
+                    }
                 }
                 .pickerStyle(.menu)
             }
@@ -161,11 +177,21 @@ struct MenuScreen: View {
         // and filteredItems was referenced 4–5 times per render (re-running each time).
         let t0 = Date()
         let allItems = menu.items
-        let dietaryItems = dietaryFiltered(allItems)
+        // Strip condiments, dressings, oils — these are never meaningful menu items
+        let nonAccessory = allItems.filter { !LocalRecommender.isAccessoryItem($0) }
+        let dietaryItems = dietaryFiltered(nonAccessory)
         let hiddenCount = allItems.count - dietaryItems.count
         // Pre-compute tier per item so the sort comparator doesn't recompute it O(n log n) times
-        let tiered = (search.isEmpty ? dietaryItems : dietaryItems.filter { $0.name.localizedCaseInsensitiveContains(search) })
-            .map { ($0, menuSortTier($0)) }
+        let searched = search.isEmpty ? dietaryItems : dietaryItems.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        let macroFiltered: [MenuItem] = {
+            switch macroFilter {
+            case .all:     return searched
+            case .protein: return searched.filter { menuSortTier($0) == 1 }
+            case .carbs:   return searched.filter { menuSortTier($0) == 2 }
+            case .greens:  return searched.filter { LocalRecommender.classifyRoles($0).contains(.produce) }
+            }
+        }()
+        let tiered = macroFiltered.map { ($0, menuSortTier($0)) }
         let items = tiered.sorted { a, b in
             if a.1 != b.1 { return a.1 < b.1 }
             switch a.1 {
@@ -218,6 +244,13 @@ struct MenuScreen: View {
                 .font(.subheadline)
                 .foregroundStyle(CP.navy)
             }
+            Picker("Filter", selection: $macroFilter) {
+                ForEach(MacroFilter.allCases, id: \.self) { f in
+                    Text(f.rawValue).tag(f)
+                }
+            }
+            .pickerStyle(.segmented)
+
             Text("\(items.count) menu items").font(.headline)
             if items.isEmpty && !search.isEmpty {
                 ContentUnavailableView.search(text: search)
@@ -227,7 +260,7 @@ struct MenuScreen: View {
             }
             if !items.isEmpty {
                 ForEach(items) { item in
-                    MenuItemCard(item: item)
+                    MenuItemCard(item: item, hall: store.selectedHall)
                 }
             }
             Text("A listed serving is a reference amount, not a measurement of your plate. Nutrition values are estimates.")
@@ -257,6 +290,7 @@ struct MenuScreen: View {
 
 struct MenuItemCard: View {
     let item: MenuItem
+    let hall: Hall
 
     var body: some View {
         VStack(alignment: .leading, spacing: CP.sp12) {
@@ -288,6 +322,11 @@ struct MenuItemCard: View {
                 Text("Per \(item.serving.label)")
                     .font(.caption2)
                     .foregroundStyle(CP.textSec)
+                if possibleDataError(macros: macros, hall: hall) {
+                    Label("Values may be scaled up — Berkeley sometimes publishes incorrect serving sizes.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             } else {
                 Text("Nutrition not available")
                     .font(.caption)
@@ -299,6 +338,11 @@ struct MenuItemCard: View {
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 1)
         .accessibilityLabel(item.name)
         .accessibilityValue(accessibilitySummary)
+    }
+
+    private func possibleDataError(macros: Macros, hall: Hall) -> Bool {
+        guard hall.isDiningHall else { return false }
+        return macros.caloriesKcal > 1000
     }
 
     private var accessibilitySummary: String {

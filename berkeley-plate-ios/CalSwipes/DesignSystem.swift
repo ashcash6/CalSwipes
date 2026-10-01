@@ -158,6 +158,15 @@ struct CPPressStyle: ButtonStyle {
     }
 }
 
+// Row-style button: background highlight only, no movement — matches standard iOS list row feel.
+struct CPRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.gray.opacity(0.12) : Color.clear)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Primary button
 
 struct CPPrimaryButton: View {

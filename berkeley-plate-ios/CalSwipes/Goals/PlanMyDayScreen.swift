@@ -619,7 +619,7 @@ private struct ComponentRow: View {
     var onAdjustServing: ((Double) -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 6) {
+        let row = HStack(spacing: 6) {
             Image(systemName: component.role.systemImage)
                 .font(.caption)
                 .foregroundStyle(CP.roleColor(component.role))
@@ -675,11 +675,8 @@ private struct ComponentRow: View {
             }
 
             if showActions {
-                Button { onSwap() } label: {
-                    Image(systemName: "arrow.left.arrow.right")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button { onRemove() } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.callout)
@@ -690,6 +687,15 @@ private struct ComponentRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+
+        if showActions {
+            Button { onSwap() } label: {
+                row.contentShape(Rectangle())
+            }
+            .buttonStyle(CPRowStyle())
+        } else {
+            row
+        }
     }
 }
 
@@ -1032,7 +1038,7 @@ struct CreatePlanSheet: View {
                     // Hall picker — corrects meal period when the new hall's
                     // known availability doesn't include the current selection.
                     Menu {
-                        ForEach(Hall.allCases) { hall in
+                        ForEach(Hall.allCases.filter { $0 != .theDen && $0 != .cubMarket && $0 != .bearMarket }) { hall in
                             Button {
                                 mealOccasions[index].hall = hall
                                 let avail = availableMeals(for: hall)

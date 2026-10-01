@@ -1,6 +1,6 @@
 import CoreML
 import XCTest
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 final class CoreMLRuntimeTests: XCTestCase {
     func testMissingModelExplicitlyFails() async throws {

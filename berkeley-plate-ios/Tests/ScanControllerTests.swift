@@ -1,8 +1,9 @@
 import XCTest
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 private struct DelayedPipeline: ScanAnalyzing {
-    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult {
+    func analyze(photo: CapturedPhoto, menu: MenuEnvelope, expected: Set<String>, isDiningHall: Bool = true,
+                 progress: @escaping @Sendable (String) async -> Void) async throws -> ScanResult {
         await progress("Test progress")
         try await Task.sleep(for: .seconds(30))
         throw PipelineFailure.unavailable("Should have been canceled")
@@ -40,7 +41,7 @@ final class ScanControllerTests: XCTestCase {
         await segmenter.finish()
         for _ in 0..<10 { await Task.yield() }
         XCTAssertNil(controller.photo)
-        XCTAssertTrue(controller.candidates.isEmpty)
+        XCTAssertTrue(controller.samCandidates.isEmpty)
         XCTAssertTrue(controller.foods.isEmpty)
         XCTAssertNil(controller.plate)
     }

@@ -1,6 +1,6 @@
 import CoreGraphics
 import XCTest
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 private struct FakeStages: Segmenting, MenuClassifying, PortionEstimating {
     let matchID: String?

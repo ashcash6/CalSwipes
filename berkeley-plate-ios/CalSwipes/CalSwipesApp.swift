@@ -13,6 +13,12 @@ private let preloadDateKey = "calswipes.preloadDate"
 
 @main
 struct CalSwipesApp: App {
+    init() {
+        // Make all scroll views pass touches to buttons immediately instead of waiting
+        // ~300ms to decide if the gesture will become a scroll.
+        UIScrollView.appearance().delaysContentTouches = false
+    }
+
     @State private var store = AppStore()
     @State private var daily = DailyStore()
     @State private var planStore = PlanStore()
@@ -163,18 +169,6 @@ struct MainTabView: View {
         .preferredColorScheme(preferredColorScheme)
         .toolbarBackground(.regularMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 50)
-                .onEnded { value in
-                    let h = value.translation.width
-                    let v = value.translation.height
-                    guard abs(h) > abs(v) * 1.5 else { return }
-                    withAnimation {
-                        if h < -50 { selectedTab = min(3, selectedTab + 1) }
-                        else if h > 50 { selectedTab = max(0, selectedTab - 1) }
-                    }
-                }
-        )
     }
 }
 

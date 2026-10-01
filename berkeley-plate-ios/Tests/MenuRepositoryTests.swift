@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 final class StubProtocol: URLProtocol {
     static var handler: ((URLRequest) throws -> (Int, Data, [String:String]))?

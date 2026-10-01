@@ -1,7 +1,7 @@
 import XCTest
 import CoreML
 import CoreGraphics
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 final class SegmentationTests: XCTestCase {
     func testPortraitLandscapeAndPromptMapping() throws {

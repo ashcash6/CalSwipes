@@ -392,8 +392,10 @@ private struct HeightSlider: View {
                     }
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { focused = false }
+                            if focused {
+                                Spacer()
+                                Button("Done") { focused = false }
+                            }
                         }
                     }
                 Text("inches total")
@@ -451,8 +453,10 @@ private struct WeightSlider: View {
                     }
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { focused = false }
+                            if focused {
+                                Spacer()
+                                Button("Done") { focused = false }
+                            }
                         }
                     }
                 Text("lbs")

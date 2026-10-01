@@ -2,7 +2,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 enum CaptureFixture {
     static func image(width: Int = 400, height: Int = 200) throws -> CGImage {

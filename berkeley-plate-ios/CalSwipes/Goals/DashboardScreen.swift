@@ -168,49 +168,28 @@ struct DashboardScreen: View {
     }
 
     private var logActionsCard: some View {
-        VStack(spacing: 0) {
-            // Nutrition label
-            Button { showLabelScan = true } label: {
-                HStack(spacing: CP.sp12) {
-                    Image(systemName: "barcode.viewfinder")
-                        .font(.subheadline)
-                        .foregroundStyle(CP.textSec)
-                        .frame(width: 28)
-                    Text("Nutrition label")
-                        .font(.subheadline)
-                        .foregroundStyle(CP.text)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(CP.textSec)
-                }
-                .padding(.horizontal, CP.sp16)
-                .padding(.vertical, CP.sp14)
-            }
-            .buttonStyle(CPPressStyle())
-
-            Divider().padding(.leading, CP.sp16 + 28 + CP.sp12)
-
-            // Manual
-            Button { showManualEntry = true } label: {
-                HStack(spacing: CP.sp12) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.subheadline)
-                        .foregroundStyle(CP.textSec)
-                        .frame(width: 28)
-                    Text("Log manually")
-                        .font(.subheadline)
-                        .foregroundStyle(CP.text)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(CP.textSec)
-                }
-                .padding(.horizontal, CP.sp16)
-                .padding(.vertical, CP.sp14)
-            }
-            .buttonStyle(CPPressStyle())
+        HStack(spacing: CP.sp12) {
+            logButton(title: "Nutrition label", icon: "barcode.viewfinder") { showLabelScan = true }
+            logButton(title: "Log manually",    icon: "square.and.pencil")  { showManualEntry = true }
         }
+    }
+
+    private func logButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: CP.sp8) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(CP.navy)
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(CP.text)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, CP.sp16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CPPressStyle())
         .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
         .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
     }
@@ -604,34 +583,35 @@ private struct MakeMealSheet: View {
     }
 
     private func foodItemRow(_ comp: MealComponent, comboIndex: Int) -> some View {
-        HStack(spacing: CP.sp12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(comp.itemName).font(.subheadline).lineLimit(2)
-                if let m = comp.macros {
-                    Text("\(Int(m.caloriesKcal)) kcal  ·  \(Int(m.proteinG))g P  ·  \(Int(m.carbsG))g C  ·  \(Int(m.fatG))g F")
-                        .font(.caption2).foregroundStyle(CP.textSec)
+        Button {
+            swappingCtx = SwapContext(component: comp, comboIndex: comboIndex)
+        } label: {
+            HStack(spacing: CP.sp12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(comp.itemName).font(.subheadline).lineLimit(2)
+                    if let m = comp.macros {
+                        Text("\(Int(m.caloriesKcal)) kcal  ·  \(Int(m.proteinG))g P  ·  \(Int(m.carbsG))g C  ·  \(Int(m.fatG))g F")
+                            .font(.caption2).foregroundStyle(CP.textSec)
+                    }
                 }
-            }
-            Spacer(minLength: 0)
-            if comp.servingCount != 1.0 && !isFixedPortions {
-                Text(servingLabel(comp.servingCount))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CP.navy)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(CP.navy.opacity(0.08), in: Capsule())
-            }
-            Button {
-                swappingCtx = SwapContext(component: comp, comboIndex: comboIndex)
-            } label: {
+                Spacer(minLength: 0)
+                if comp.servingCount != 1.0 && !isFixedPortions {
+                    Text(servingLabel(comp.servingCount))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CP.navy)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(CP.navy.opacity(0.08), in: Capsule())
+                }
                 Image(systemName: "arrow.2.squarepath")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(CP.navy.opacity(0.6))
                     .frame(width: 32, height: 32)
                     .background(CP.navy.opacity(0.06), in: Circle())
             }
-            .buttonStyle(.plain)
+            .padding(CP.sp16)
+            .contentShape(Rectangle())
         }
-        .padding(CP.sp16)
+        .buttonStyle(CPRowStyle())
     }
 
     private func servingLabel(_ count: Double) -> String {

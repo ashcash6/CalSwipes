@@ -1,5 +1,5 @@
 import XCTest
-@testable import BerkeleyPlate
+@testable import CalSwipes
 
 final class MenuTests: XCTestCase {
     func fixture() throws -> Data {

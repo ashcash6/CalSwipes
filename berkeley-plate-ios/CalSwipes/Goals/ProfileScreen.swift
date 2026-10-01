@@ -36,17 +36,6 @@ struct ProfileScreen: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { nameText = daily.nickname }
-            .toolbar {
-                if nameFocused {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Done") {
-                            daily.saveNickname(nameText)
-                            nameFocused = false
-                        }
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showGoalSheet) {
             OnboardingScreen(store: daily, editMode: true)
@@ -80,14 +69,6 @@ struct ProfileScreen: View {
                     .onSubmit { daily.saveNickname(nameText) }
                     .onChange(of: nameFocused) { _, focused in
                         if !focused { daily.saveNickname(nameText) }
-                    }
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            if nameFocused {
-                                Spacer()
-                                Button("Done") { nameFocused = false }
-                            }
-                        }
                     }
             }
             .padding(CP.sp14)

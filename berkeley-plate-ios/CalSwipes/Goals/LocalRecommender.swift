@@ -46,12 +46,17 @@ enum LocalRecommender {
             guard item.nutritionStatus == "published" else { return false }
             guard !excluding.contains(item.id) else { return false }
             guard !isAccessoryItem(item) else { return false }
+            guard !isDessertItem(item) else { return false }
             guard !item.allergens.contains(where: { blocked.contains($0) }) else { return false }
             // Dietary tags: if the user has any preferences set, every candidate must carry
             // at least one matching tag.  (Vegan/Vegetarian/Halal are hard dietary identities,
             // not soft preferences.)
+            // Berkeley Dining inconsistently omits tags from known plant-based items (tofu,
+            // tempeh, etc.) — supplement with name-based inference so they aren't silently
+            // dropped on days the backend forgets to tag them.
             if !preferredTags.isEmpty {
                 return item.dietaryTags.contains(where: { preferredTags.contains($0) })
+                    || passesInferredDietaryCheck(item, preferredTags: preferredTags)
             }
             return true
         }
@@ -108,7 +113,9 @@ enum LocalRecommender {
                 guard !isAccessoryItem(item) else { return false }
                 guard !item.allergens.contains(where: { blocked.contains($0) }) else { return false }
                 if !preferredTags.isEmpty {
-                    guard item.dietaryTags.contains(where: { preferredTags.contains($0) }) else { return false }
+                    guard item.dietaryTags.contains(where: { preferredTags.contains($0) })
+                        || passesInferredDietaryCheck(item, preferredTags: preferredTags)
+                    else { return false }
                 }
                 return true
             }
@@ -194,7 +201,9 @@ enum LocalRecommender {
                 guard !isAccessoryItem(item) else { return false }
                 guard !item.allergens.contains(where: { blocked.contains($0) }) else { return false }
                 if !preferredTags.isEmpty {
-                    guard item.dietaryTags.contains(where: { preferredTags.contains($0) }) else { return false }
+                    guard item.dietaryTags.contains(where: { preferredTags.contains($0) })
+                        || passesInferredDietaryCheck(item, preferredTags: preferredTags)
+                    else { return false }
                 }
                 return classifyRoles(item).contains(role)
             }
@@ -296,6 +305,38 @@ extension LocalRecommender {
     }
 }
 
+// MARK: - Dessert Detection
+
+extension LocalRecommender {
+    static func isDessertItem(_ item: MenuItem) -> Bool {
+        let nameLC = item.name.lowercased()
+        let catLC  = item.categories.joined(separator: " ").lowercased()
+
+        // Category-based: anything explicitly filed as dessert/bakery/pastry
+        if catLC.contains("dessert") || catLC.contains("pastry") || catLC.contains("bakery")
+            || catLC.contains("sweet") || catLC.contains("confection") { return true }
+
+        // Unambiguous dessert name terms
+        let dessertNames: [String] = [
+            "brownie", "donut", "doughnut", "ice cream", "gelato", "sorbet", "sherbet",
+            "cheesecake", "cupcake", "frosting", "trifle", "tiramisu", "mousse", "flan",
+            "churro", "cannoli", "eclair", "profiterole", "madeleine", "s'more",
+            "cookie", "biscotti", "macaroon",
+            // "cake" without savoury qualifiers — exclude rice cake, fish cake, etc.
+            "chocolate cake", "carrot cake", "vanilla cake", "birthday cake", "bundt cake",
+            "layer cake", "pound cake", "coffee cake",
+            // Pies — exclude pot pie / chicken pie
+            "apple pie", "cherry pie", "pecan pie", "pumpkin pie", "key lime pie",
+            "fruit pie", "cream pie", "lemon meringue",
+            // Other sweets
+            "candy bar", "caramel apple", "cotton candy", "panna cotta",
+        ]
+        if dessertNames.contains(where: { nameLC.contains($0) }) { return true }
+
+        return false
+    }
+}
+
 // MARK: - Role Classification
 
 extension LocalRecommender {
@@ -388,11 +429,23 @@ extension LocalRecommender {
         return roles
     }
 
+    /// Berkeley Dining inconsistently omits vegan/vegetarian tags from inherently plant-based items
+    /// (tofu, tempeh, edamame, seitan, falafel). This fills the gap using the item name so those
+    /// items are never silently filtered out when the user has a vegetarian or vegan preference.
+    static func passesInferredDietaryCheck(_ item: MenuItem, preferredTags: Set<String>) -> Bool {
+        let wantsVeg = preferredTags.contains("Vegetarian Option") || preferredTags.contains("Vegan Option")
+        guard wantsVeg else { return false }
+        let name = item.name.lowercased()
+        let plantBased = ["tofu", "tempeh", "edamame", "seitan", "falafel"]
+        return plantBased.contains(where: { name.contains($0) })
+    }
+
     static func baseItemScore(_ item: MenuItem, preferredTags: Set<String>) -> Double {
         var score = healthinessBoost(item)
         if item.macros == nil { score *= 0.80 }
         if !preferredTags.isEmpty
-            && item.dietaryTags.contains(where: { preferredTags.contains($0) }) {
+            && (item.dietaryTags.contains(where: { preferredTags.contains($0) })
+                || passesInferredDietaryCheck(item, preferredTags: preferredTags)) {
             score *= 1.10
         }
         return score
@@ -843,7 +896,9 @@ extension LocalRecommender {
             guard !isAccessoryItem(item) else { return false }
             guard !item.allergens.contains(where: { blocked.contains($0) }) else { return false }
             if !preferredTags.isEmpty {
-                guard item.dietaryTags.contains(where: { preferredTags.contains($0) }) else { return false }
+                guard item.dietaryTags.contains(where: { preferredTags.contains($0) })
+                    || passesInferredDietaryCheck(item, preferredTags: preferredTags)
+                else { return false }
             }
             return classifyRoles(item).contains(component.role)
         }
