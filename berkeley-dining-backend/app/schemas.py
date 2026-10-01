@@ -102,21 +102,36 @@ class ScanMealRequest(StrictModel):
     hall: Hall
     date: date
     meal: Meal
+    # Kept for backward compatibility with older clients; ignored by the handler.
     from_dining_hall: bool = True
+
+
+class ScanAlternativeItem(StrictModel):
+    item_id: str
+    item_name: str
+    confidence: float
 
 
 class ScanMatchedItem(StrictModel):
     item_id: str
     item_name: str
     confidence: float
-    portion_multiplier: float
-    adjusted_macros: Macros | None = None
+    confidence_tier: str  # "auto" | "confirm" | "ask"
+    alternatives: list[ScanAlternativeItem] = Field(default_factory=list)
 
 
 class ScanMealResponse(StrictModel):
     matched: list[ScanMatchedItem]
     no_match_reason: str | None = None
-    generic_macros: Macros | None = None
+
+
+class ScanCorrectionRequest(StrictModel):
+    hall: Hall
+    date: date
+    meal: Meal
+    photo_hash: str
+    original_item_id: str
+    corrected_item_id: str
 
 
 class DietaryProfile(BaseModel):

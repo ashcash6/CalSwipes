@@ -2,7 +2,7 @@ name: Scrape Berkeley Dining Menus
 
 on:
   schedule:
-    - cron: '15 */3 * * *'  # every 3 hours at :15 past
+    - cron: '0 6 * * *'  # 11pm PT (UTC-7 PDT)
   workflow_dispatch:          # allows manual trigger from GitHub Actions UI
 
 permissions:

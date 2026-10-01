@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.db import MenuSnapshot, make_engine
 from app.importer import canonical_hash
-from app.schemas import ALLOWED_SCAN_MIME_TYPES, MAX_PHOTO_BYTES, Hall, Meal, MenuResponse, ScanMealRequest, ScanMealResponse
+from app.schemas import ALLOWED_SCAN_MIME_TYPES, MAX_PHOTO_BYTES, Hall, Meal, MenuResponse, ScanCorrectionRequest, ScanMealRequest, ScanMealResponse
 from app import vision
 
 
@@ -102,32 +102,6 @@ def create_app(settings=None, engine=None):
         if len(photo_bytes) > MAX_PHOTO_BYTES:
             return error("photo_too_large", "Photo must be under 10 MB", 413)
 
-        # Non-dining-hall path: skip menu lookup, ask Gemini for free-form macro estimates.
-        if not body.from_dining_hall:
-            log = logging.getLogger("berkeley.api")
-            try:
-                generic = vision.identify_food_generic(photo_bytes, body.mime_type, settings.gemini_api_key)
-            except httpx.HTTPStatusError as exc:
-                log.error("gemini_generic_http_error status=%s body=%s", exc.response.status_code, exc.response.text[:500])
-                return error("vision_error", "Photo recognition service returned an error", 502)
-            except httpx.TransportError as exc:
-                log.error("gemini_generic_transport_error %s", exc)
-                return error("vision_error", "Photo recognition service is temporarily unavailable", 503)
-            except (json.JSONDecodeError, KeyError, ValueError) as exc:
-                log.error("gemini_generic_parse_error %s", exc)
-                return error("vision_error", "Unexpected response from photo recognition service", 502)
-
-            macros = {
-                "calories_kcal": generic["calories_kcal"],
-                "protein_g": generic["protein_g"],
-                "carbs_g": generic["carbs_g"],
-                "fat_g": generic["fat_g"],
-            }
-            return JSONResponse(
-                {"matched": [], "no_match_reason": None, "generic_macros": macros},
-                headers={"Cache-Control": "no-store"},
-            )
-
         with Session(engine) as session:
             snapshot = session.scalar(select(MenuSnapshot).where(
                 MenuSnapshot.hall == body.hall.value,
@@ -139,6 +113,7 @@ def create_app(settings=None, engine=None):
             return error("menu_unavailable", "No menu found for this hall/date/meal", 404)
 
         all_items = snapshot.content.get("items", [])
+        # Only offer items that have published nutrition — the iOS app looks these up by ID.
         scannable = [{"id": i["id"], "name": i["name"]} for i in all_items if i.get("macros")]
         if not scannable:
             return error("no_scannable_items", "No items with nutrition data available for this meal", 422)
@@ -158,27 +133,40 @@ def create_app(settings=None, engine=None):
             log.error("gemini_parse_error %s", exc)
             return error("vision_error", "Unexpected response from photo recognition service", 502)
 
+        # Nutrition is looked up by the iOS app from its local MenuEnvelope.
+        # The backend validates IDs and enriches alternatives, but does not adjust macros.
         matched = []
-        for m in result.get("matched", []):
-            item = item_map.get(m["item_id"])
-            if item is None:
+        for m in result.get("matches", []):
+            if item_map.get(m["item_id"]) is None:
                 continue
-            base_macros = item.get("macros")
-            adjusted = None
-            if base_macros:
-                mult = m["portion_multiplier"]
-                adjusted = {k: round(v * mult, 1) for k, v in base_macros.items()}
+            alternatives = []
+            for alt in m.get("alternatives", []):
+                if item_map.get(alt["item_id"]) is not None:
+                    alternatives.append({
+                        "item_id": alt["item_id"],
+                        "item_name": item_map[alt["item_id"]]["name"],
+                        "confidence": alt["confidence"],
+                    })
             matched.append({
                 "item_id": m["item_id"],
-                "item_name": m["item_name"],
+                "item_name": item_map[m["item_id"]]["name"],
                 "confidence": m["confidence"],
-                "portion_multiplier": m["portion_multiplier"],
-                "adjusted_macros": adjusted,
+                "confidence_tier": m["confidence_tier"],
+                "alternatives": alternatives,
             })
 
         return JSONResponse(
             {"matched": matched, "no_match_reason": result.get("no_match_reason")},
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.post("/v1/log-correction")
+    def log_correction(body: ScanCorrectionRequest):
+        logging.getLogger("berkeley.api").info(
+            "scan_correction hall=%s date=%s meal=%s photo_hash=%s original=%s corrected=%s",
+            body.hall.value, body.date, body.meal.value,
+            body.photo_hash, body.original_item_id, body.corrected_item_id,
+        )
+        return JSONResponse({"status": "ok"}, headers={"Cache-Control": "no-store"})
 
     return app
