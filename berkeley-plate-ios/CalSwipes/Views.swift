@@ -24,15 +24,42 @@ struct MenuScreen: View {
     @State private var search = ""
     @State private var mealSuggestionRequest: MealSuggestionRequest?
     @State private var macroFilter: MacroFilter = .all
+    @State private var addedItemName: String? = nil
 
     private func dietaryFiltered(_ items: [MenuItem]) -> [MenuItem] {
         guard let goal = daily.goal,
               !goal.allergens.isEmpty || !goal.dietaryTags.isEmpty else { return items }
-        let blocked = Set(goal.allergens)
-        let required = Set(goal.dietaryTags.map { dietaryTagToBackend[$0] ?? $0 })
+        let blockedAllergens = Set(goal.allergens)
+        let tags = Set(goal.dietaryTags)
         return items.filter { item in
-            if !blocked.isEmpty, !blocked.isDisjoint(with: Set(item.allergens)) { return false }
-            if !required.isEmpty, !required.isSubset(of: Set(item.dietaryTags)) { return false }
+            let allergens = Set(item.allergens)
+            let itemTags = Set(item.dietaryTags)
+
+            // Hard block: item contains a selected allergen
+            if !blockedAllergens.isEmpty, !blockedAllergens.isDisjoint(with: allergens) { return false }
+
+            // Vegetarian: Berkeley tracks Fish, Shellfish, and Pork as the key non-vegetarian allergens
+            if tags.contains("Vegetarian") {
+                if !allergens.isDisjoint(with: ["Fish", "Shellfish", "Pork"]) { return false }
+            }
+
+            // Vegan: all animal-derived allergens Berkeley tracks; also exclude items Berkeley
+            // explicitly labels Vegetarian-Only (dairy/eggs present but tagged, so confirmed non-vegan)
+            if tags.contains("Vegan") {
+                if !allergens.isDisjoint(with: ["Milk", "Egg", "Fish", "Shellfish", "Pork"]) { return false }
+                if itemTags.contains("Vegetarian Option") && !itemTags.contains("Vegan Option") { return false }
+            }
+
+            // Halal: Pork and Alcohol are the explicit violations Berkeley's allergen data covers
+            if tags.contains("Halal") {
+                if allergens.contains("Pork") || allergens.contains("Alcohol") { return false }
+            }
+
+            // Kosher: Pork and Shellfish are the primary Berkeley-tracked violations
+            if tags.contains("Kosher") {
+                if allergens.contains("Pork") || allergens.contains("Shellfish") { return false }
+            }
+
             return true
         }
     }
@@ -126,6 +153,28 @@ struct MenuScreen: View {
             .sheet(item: $mealSuggestionRequest) { req in
                 MealSuggestionSheet(combos: req.combos, hallTitle: req.hallTitle, mealTitle: req.mealTitle)
             }
+            .overlay(alignment: .bottom) {
+                if let name = addedItemName {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.white)
+                        Text("Added \(name)").foregroundStyle(.white).font(.subheadline.weight(.medium))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(CP.navy, in: Capsule())
+                    .shadow(radius: 8)
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(duration: 0.3), value: addedItemName)
+            .onChange(of: addedItemName) { _, name in
+                guard name != nil else { return }
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    addedItemName = nil
+                }
+            }
         }
     }
 
@@ -177,9 +226,7 @@ struct MenuScreen: View {
         // and filteredItems was referenced 4–5 times per render (re-running each time).
         let t0 = Date()
         let allItems = menu.items
-        // Strip condiments, dressings, oils — these are never meaningful menu items
-        let nonAccessory = allItems.filter { !LocalRecommender.isAccessoryItem($0) }
-        let dietaryItems = dietaryFiltered(nonAccessory)
+        let dietaryItems = dietaryFiltered(allItems)
         let hiddenCount = allItems.count - dietaryItems.count
         // Pre-compute tier per item so the sort comparator doesn't recompute it O(n log n) times
         let searched = search.isEmpty ? dietaryItems : dietaryItems.filter { $0.name.localizedCaseInsensitiveContains(search) }
@@ -260,7 +307,15 @@ struct MenuScreen: View {
             }
             if !items.isEmpty {
                 ForEach(items) { item in
-                    MenuItemCard(item: item, hall: store.selectedHall)
+                    MenuItemCard(item: item, hall: store.selectedHall) {
+                        guard let macros = item.macros else { return }
+                        daily.logDiningItem(
+                            name: item.name, macros: macros,
+                            hallTitle: store.selectedHall.title,
+                            mealTitle: store.selectedMeal.title
+                        )
+                        addedItemName = item.name
+                    }
                 }
             }
             Text("A listed serving is a reference amount, not a measurement of your plate. Nutrition values are estimates.")
@@ -291,15 +346,34 @@ struct MenuScreen: View {
 struct MenuItemCard: View {
     let item: MenuItem
     let hall: Hall
+    var onLog: (() -> Void)? = nil
 
     var body: some View {
+        let content = cardContent
+        if let onLog, item.macros != nil {
+            Button(action: onLog) { content }
+                .buttonStyle(CPRowStyle())
+        } else {
+            content
+        }
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: CP.sp12) {
             // Food name — dominant
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(CP.text)
-                    .multilineTextAlignment(.leading)
+                HStack(alignment: .top) {
+                    Text(item.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(CP.text)
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                    if onLog != nil, item.macros != nil {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.body)
+                            .foregroundStyle(CP.navy.opacity(0.5))
+                    }
+                }
                 let cats = item.categories.filter { !$0.isEmpty }.joined(separator: " · ")
                 if !cats.isEmpty {
                     Text(cats)

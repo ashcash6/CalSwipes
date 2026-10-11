@@ -103,6 +103,18 @@ final class DailyStore {
         updateStreak()
     }
 
+    func logDiningItem(name: String, macros: Macros, hallTitle: String, mealTitle: String) {
+        let meal = LoggedMeal(
+            id: UUID(), date: todayDate,
+            hallTitle: hallTitle, mealTitle: mealTitle,
+            itemNames: [name], macros: macros, loggedAt: Date()
+        )
+        logs.append(meal)
+        updateTodayCache()
+        saveLogs()
+        updateStreak()
+    }
+
     func logCombo(_ combo: MealCombo, hallTitle: String, mealTitle: String) {
         let total = combo.totalMacros
         let meal = LoggedMeal(
