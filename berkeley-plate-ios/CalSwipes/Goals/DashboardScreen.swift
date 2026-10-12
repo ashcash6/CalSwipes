@@ -17,6 +17,7 @@ struct DashboardScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: CP.sp20) {
                     dateHeader
+                    WeeklyBar(daily: daily)
                     progressSection
                     makeMealSection
                     scanSection
@@ -192,6 +193,214 @@ struct DashboardScreen: View {
         .buttonStyle(CPPressStyle())
         .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
         .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
+    }
+}
+
+// MARK: - Weekly ring bar
+
+private struct WeeklyBar: View {
+    let daily: DailyStore
+    @State private var animated = false
+    @State private var selectedIdx: Int? = nil
+
+    private static let dayLetters   = ["M", "T", "W", "T", "F", "S", "S"]
+    private static let accentTeal   = Color(red: 0.16, green: 0.72, blue: 0.56)
+    private static let accentGold   = Color(red: 0.95, green: 0.70, blue: 0.20)
+
+    private struct DayData: Identifiable {
+        let id: Int
+        let letter: String
+        let date: String
+        let isToday: Bool
+        let isFuture: Bool
+        let kcal: Double
+        let fill: Double     // 0 … 1+
+    }
+
+    private var days: [DayData] {
+        let cal = BerkeleyClock.calendar
+        let now = Date()
+        let todayStr = BerkeleyClock.serviceDate()
+        let weekday = cal.component(.weekday, from: now)         // 1=Sun
+        let daysBack = weekday == 1 ? 6 : weekday - 2            // 0=Mon … 6=Sun
+        guard let monday = cal.date(byAdding: .day, value: -daysBack, to: now) else { return [] }
+        let target = daily.goal?.targetCalories ?? 0
+        return (0..<7).map { i in
+            let d = cal.date(byAdding: .day, value: i, to: monday) ?? monday
+            let ds = BerkeleyClock.serviceDate(d)
+            let isFuture = ds > todayStr
+            let kcal = isFuture ? 0 : daily.caloriesForDate(ds)
+            let fill = target > 0 && kcal > 0 ? kcal / target : 0
+            return DayData(id: i, letter: Self.dayLetters[i], date: ds,
+                           isToday: ds == todayStr, isFuture: isFuture,
+                           kcal: kcal, fill: fill)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CP.sp10) {
+            // ── Header ──────────────────────────────────────────────
+            HStack(alignment: .center) {
+                HStack(spacing: 5) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(CP.navy.opacity(0.55))
+                    Text("THIS WEEK")
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(1.4)
+                        .foregroundStyle(CP.textSec)
+                }
+                Spacer()
+                if daily.weeklyCalories > 0 {
+                    HStack(spacing: 3) {
+                        Text("\(Int(daily.weeklyCalories))")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(CP.navy)
+                        Text("kcal")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(CP.textSec)
+                    }
+                }
+            }
+
+            // ── Ring row ─────────────────────────────────────────────
+            HStack(spacing: 0) {
+                ForEach(days) { day in
+                    dayCell(day: day)
+                }
+            }
+        }
+        .padding(.horizontal, CP.sp16)
+        .padding(.vertical, CP.sp14)
+        .background {
+            RoundedRectangle(cornerRadius: CP.r16)
+                .fill(CP.surface)
+                .overlay {
+                    // subtle diagonal shimmer accent
+                    LinearGradient(
+                        stops: [
+                            .init(color: CP.navy.opacity(0.06), location: 0),
+                            .init(color: CP.navy.opacity(0.01), location: 0.4),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: CP.r16))
+                }
+        }
+        .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
+        .onAppear {
+            withAnimation(.spring(duration: 0.75, bounce: 0.20)) { animated = true }
+        }
+    }
+
+    @ViewBuilder
+    private func dayCell(day: DayData) -> some View {
+        let hasLogs  = day.kcal > 0
+        let isOver   = day.fill > 1.05
+        let isHit    = day.fill >= 0.88 && hasLogs && !isOver
+        let arcFill  = min(day.fill, 1.0)
+        let isSelected = selectedIdx == day.id
+
+        let ringColor: Color = isOver ? Self.accentGold : (isHit ? Self.accentTeal : CP.navy)
+
+        VStack(spacing: 4) {
+
+            // ── Day letter ──────────────────────────────────────────
+            Text(day.letter)
+                .font(.system(size: 10,
+                              weight: day.isToday ? .black : .semibold,
+                              design: .rounded))
+                .foregroundStyle(
+                    day.isToday   ? CP.navy              :
+                    day.isFuture  ? Color.primary.opacity(0.18) :
+                                    CP.textSec.opacity(0.70)
+                )
+
+            // ── Ring ─────────────────────────────────────────────────
+            ZStack {
+                // Today background disc
+                if day.isToday {
+                    Circle().fill(CP.navy.opacity(0.07))
+                }
+
+                // Track
+                Circle()
+                    .stroke(
+                        day.isFuture
+                            ? Color.primary.opacity(0.05)
+                            : Color.primary.opacity(0.10),
+                        lineWidth: 2.5
+                    )
+
+                // Over-goal ghost ring — shows that the arc wrapped past 100 %
+                if isOver {
+                    Circle()
+                        .stroke(Self.accentGold.opacity(0.22), lineWidth: 3.5)
+                }
+
+                // Animated progress arc
+                if hasLogs {
+                    Circle()
+                        .trim(from: 0, to: animated ? arcFill : 0)
+                        .stroke(ringColor,
+                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(
+                            .spring(duration: 0.70, bounce: 0.15)
+                            .delay(Double(day.id) * 0.065),
+                            value: animated
+                        )
+                }
+
+                // Today accent border
+                if day.isToday {
+                    Circle()
+                        .strokeBorder(CP.navy.opacity(0.28), lineWidth: 1.5)
+                }
+
+                // Inner icon
+                Group {
+                    if isHit && !day.isToday {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 7, weight: .black))
+                            .foregroundStyle(Self.accentTeal)
+                    } else if isOver && !day.isToday {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Self.accentGold)
+                    } else if day.isToday && !hasLogs {
+                        Circle()
+                            .fill(CP.navy.opacity(0.40))
+                            .frame(width: 5, height: 5)
+                    }
+                }
+            }
+            .frame(width: 30, height: 30)
+
+            // ── Calorie label (today always, others on tap) ──────────
+            Group {
+                if hasLogs && (isSelected || day.isToday) {
+                    Text("\(Int(day.kcal))")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(ringColor)
+                        .transition(.scale(scale: 0.7).combined(with: .opacity))
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(height: 9)
+            .animation(.spring(duration: 0.2), value: isSelected)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard hasLogs || day.isToday else { return }
+            withAnimation(.spring(duration: 0.22)) {
+                selectedIdx = selectedIdx == day.id ? nil : day.id
+            }
+        }
     }
 }
 
