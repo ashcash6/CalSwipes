@@ -167,7 +167,35 @@ How it works: it loads that hall/meal/date's menu from the structured tables (`m
 
 The same function is exposed as the ADK tool `scan_tray` (on `menu_agent`, referencing an uploaded image by `image_ref`) and as the MCP tool `scan_tray` (takes `image_base64`). With `OFFLINE=1`, `StubVision` deterministically picks 2-3 menu items without looking at the image, so tests run without credentials. See `evals/scan/README.md` for building a real labeled photo set from user confirmations.
 
-**iOS integration is TODO (Ash):** call `/v1/scan` from the app's scan flow, show matches with confidence, let the user confirm/remove/add items and set servings, then log. The agent service is deployed private (`--no-allow-unauthenticated`), so before the app can call it you'll need to either put it behind the backend (proxy route) or make it public with rate limiting and an app-attest/session check.
+**iOS:** the assistant chat can send a tray photo through the public proxy (`POST /assistant/scan`, section 9) and shows matches with confidence. Confirming items, setting servings and logging them is still TODO (Ash), see `berkeley-plate-ios/IOS_ASSISTANT.md`.
+
+### 9. App access, cost controls and model routing
+
+The iOS app never calls the agent directly. It calls the public CalSwipes API, which proxies to the private agent service (`berkeley-dining-backend/app/routers/assistant.py`):
+
+| Endpoint (public API) | Forwards to (private agent) | Body |
+|---|---|---|
+| `POST /assistant/ask` | `POST /v1/ask` | JSON `{question, hall?, meal?, date?}` |
+| `POST /assistant/scan` | `POST /v1/scan` | multipart `image, hall, meal, date?` |
+
+Headers from the app: `X-CalSwipes-Device` (Keychain UUID, required), `X-CalSwipes-Entitlement: premium` and `X-CalSwipes-Transaction` (StoreKit JWS) for subscribers. The proxy authenticates to the agent with a Google-signed **ID token** from the Cloud Run metadata server (audience = agent URL). The API's service account needs `roles/run.invoker` on the agent service.
+
+Cost controls (`berkeley-dining-backend/app/assistant_limits.py`, Postgres tables from migration `0005`):
+
+| Control | Setting | Default |
+|---|---|---|
+| Per-user daily caps | free / premium | 3 asks + 1 scan / 30 asks + 5 scans |
+| Launch promo | `PROMO_FREE_UNTIL=YYYY-MM-DD` | off; until that date everyone gets premium caps |
+| Global spend kill switch | `ASSISTANT_DAILY_SPEND_CAP_USD` | **$1.00/day**; then "try again tomorrow" (HTTP 503) |
+| Per-IP backstop | `ASSISTANT_IP_DAILY_CAP` | 200/day |
+| Answer cache | `ASSISTANT_CACHE_TTL_HOURS` | 24h, keyed by normalized question + hall + meal + date |
+| Trust client premium claim | `TRUST_CLIENT_ENTITLEMENT` | `0` (off until receipts are verified server-side) |
+
+Cache hits are free: they don't use the user's quota and are still served after the spend cap trips. Failed upstream calls (and scans the agent rejects, like a bad photo) are refunded to the user's quota. Spend is the agent's own `cost_usd` per request (tokens × `config/pricing.json`), summed per Berkeley day. The proxy is only mounted when `ASSISTANT_AGENT_URL` is set, so the existing API is unchanged otherwise.
+
+Model routing (`config.model_for_agent`): the specialist agents (menu, policy, nutrition) mostly pick tools and pass data back, so they run on **gemini-2.5-flash-lite** (`PLANNER_MODEL`). The root planner writes the answer the user reads and the tray scanner does vision, so both run on **gemini-2.5-flash** (`GEMINI_MODEL`, `SCAN_MODEL`). Each LLM call is costed with its own model's price.
+
+On the phone, most questions never reach the cloud: quick-action chips are answered locally and free text goes to Apple's on-device model first. See `berkeley-plate-ios/IOS_ASSISTANT.md`.
 
 ## How this maps to the Google FDE intern posting
 

@@ -170,7 +170,7 @@ gcloud scheduler jobs create http calswipes-import-nightly --location "$REGION" 
 ```bash
 gcloud builds submit . --config agent/deploy/cloudbuild.agent.yaml --substitutions=_IMAGE="$AR/agent:$TAG"
 
-AGENT_ENV="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$VERTEX_LOCATION,GEMINI_MODEL=gemini-2.5-flash,EMBEDDING_MODEL=text-embedding-005,TRACE_EXPORTER=gcp,AGENT_RUNTIME=adk"
+AGENT_ENV="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$VERTEX_LOCATION,GEMINI_MODEL=gemini-2.5-flash,PLANNER_MODEL=gemini-2.5-flash-lite,EMBEDDING_MODEL=text-embedding-005,TRACE_EXPORTER=gcp,AGENT_RUNTIME=adk"
 
 # Load menus + docs into Postgres/pgvector (creates tables and the vector extension on first run).
 gcloud run jobs create calswipes-agent-ingest --image "$AR/agent:$TAG" --region "$REGION" \
@@ -200,6 +200,34 @@ curl -s -H "Authorization: Bearer $(gcloud auth print-identity-token)" -H "Conte
 To save money while not demoing, drop the agent to `--min-instances 0`: `gcloud run services update calswipes-agent --region "$REGION" --min-instances 0`.
 
 Before ingesting real docs: run `cd agent && python -m pipeline.fetch_docs` locally, check `agent/pipeline/docs/fetched/`, then delete `agent/pipeline/docs/sample/` (or keep it out of the image) so answers only cite real pages. Rebuild and re-run the ingest job.
+
+## 9b. Connect the public API to the agent (assistant proxy + cost controls)
+
+```bash
+# Let the API's service account call the private agent service.
+gcloud run services add-iam-policy-binding calswipes-agent --region "$REGION" \
+  --member="serviceAccount:$API_SA" --role="roles/run.invoker"
+
+# New tables for caps/spend/cache (migration 0005). Rebuild the API image first if you haven't since pulling.
+gcloud builds submit berkeley-dining-backend --tag "$AR/api:$TAG"
+gcloud run jobs update calswipes-migrate --image "$AR/api:$TAG" --region "$REGION"
+gcloud run jobs execute calswipes-migrate --region "$REGION" --wait
+
+# Turn the proxy on. Pick your promo end date (or leave PROMO_FREE_UNTIL empty for none).
+gcloud run deploy calswipes-api --image "$AR/api:$TAG" --region "$REGION" \
+  --update-env-vars "ASSISTANT_AGENT_URL=$AGENT_URL,ASSISTANT_DAILY_SPEND_CAP_USD=1.00,PROMO_FREE_UNTIL=2026-12-31,TRUST_CLIENT_ENTITLEMENT=0"
+
+# Model routing on the agent (these are the defaults; set explicitly so they show in the console).
+gcloud run services update calswipes-agent --region "$REGION" \
+  --update-env-vars "GEMINI_MODEL=gemini-2.5-flash,PLANNER_MODEL=gemini-2.5-flash-lite,SCAN_MODEL=gemini-2.5-flash"
+
+# Smoke test through the public API (any 16+ char id works as a test device).
+curl -s -X POST "$API_URL/assistant/ask" -H "Content-Type: application/json" \
+  -H "X-CalSwipes-Device: test-device-000000001" \
+  -d '{"question":"What vegan options are at Crossroads for lunch?","hall":"crossroads","meal":"lunch"}'
+```
+
+The spend cap counts only what the agent reports for requests that go through the proxy. Keep the Cloud Billing budget from step 10 as the real backstop, and note that `min-instances=1` costs are separate from the $1/day AI cap.
 
 ## 10. Budget alert (do this before leaving min-instances on)
 

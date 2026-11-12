@@ -105,6 +105,8 @@ CalSwipes/
 
 `agent/` adds an AI layer on top of the menu data: a Google ADK multi-agent assistant (Gemini on Vertex AI) that answers menu, nutrition and allergen-policy questions with citations, a tray-photo scanner (`POST /v1/scan`), an MCP server, an eval pipeline, and token/cost/latency observability. The backend also has a Cloud Run Dockerfile now. Architecture, setup and the scan endpoint are in [agent/README.md](agent/README.md), and deploy commands are in [agent/deploy/README.md](agent/deploy/README.md).
 
+In the app, a floating assistant button answers questions in three tiers (instant from cached menus, Apple's on-device model, then the cloud agent through `/assistant/*` with daily caps), plus a CalSwipes+ subscription scaffold. Setup is in [berkeley-plate-ios/IOS_ASSISTANT.md](berkeley-plate-ios/IOS_ASSISTANT.md).
+
 ## Running locally
 
 ### Backend
