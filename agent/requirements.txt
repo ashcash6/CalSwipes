@@ -12,7 +12,7 @@ defusedxml==0.7.1                        # safe XML parsing for the Eatec feed
 numpy==2.5.3                             # offline vector search
 psycopg[binary]==3.3.5                   # (*) Postgres / Neon driver
 tzdata==2026.4
-opentelemetry-api==1.45.0
-opentelemetry-sdk==1.45.0                # (*)
-opentelemetry-exporter-gcp-trace==1.9.0  # (*) Cloud Trace exporter
+opentelemetry-api>=1.39,<=1.44
+opentelemetry-sdk>=1.39,<=1.44                # (*)
+opentelemetry-exporter-gcp-trace>=1.9.0  # (*) Cloud Trace exporter
 pytest==9.1.1
