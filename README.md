@@ -93,11 +93,17 @@ CalSwipes/
 │   │   └── ...                API client, menu cache, models, design system
 │   ├── Tests/                 XCTest suite
 │   └── Tools/                 Model export and verification scripts
-└── berkeley-dining-backend/   FastAPI + PostgreSQL menu API and importer
-    ├── app/                   Parser, importer, API, auth, planning, vision
-    ├── migrations/            Alembic schema revisions
-    └── tests/                 Parser and PostgreSQL tests with real Berkeley fixtures
+├── berkeley-dining-backend/   FastAPI + PostgreSQL menu API and importer
+│   ├── app/                   Parser, importer, API, auth, planning, vision
+│   ├── migrations/            Alembic schema revisions
+│   ├── scripts/bench.py       p50/p95 latency benchmark for the API
+│   └── tests/                 Parser and PostgreSQL tests with real Berkeley fixtures
+└── agent/                     AI assistant + tray scanner on Google Cloud (see agent/README.md)
 ```
+
+## CalSwipes Agent
+
+`agent/` adds an AI layer on top of the menu data: a Google ADK multi-agent assistant (Gemini on Vertex AI) that answers menu, nutrition and allergen-policy questions with citations, a tray-photo scanner (`POST /v1/scan`), an MCP server, an eval pipeline, and token/cost/latency observability. The backend also has a Cloud Run Dockerfile now. Architecture, setup and the scan endpoint are in [agent/README.md](agent/README.md), and deploy commands are in [agent/deploy/README.md](agent/deploy/README.md).
 
 ## Running locally
 

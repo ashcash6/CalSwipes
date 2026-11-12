@@ -4,8 +4,10 @@ A production-style AI assistant for UC Berkeley dining, built on top of the CalS
 
 It has two parts:
 
-1. **`backend/`**: the existing CalSwipes FastAPI backend (the one the iOS app talks to), containerized for Google Cloud Run. Same API, so the app keeps working.
-2. **The agent system**: a data pipeline (Postgres + pgvector), a Google ADK multi-agent system using Gemini on Vertex AI, an MCP server, an eval pipeline and observability.
+1. **`../berkeley-dining-backend/`**: the existing CalSwipes FastAPI backend (the one the iOS app talks to), now with a Cloud Run Dockerfile and `scripts/bench.py`. Same API, so the app keeps working.
+2. **This folder, `agent/`**: a data pipeline (Postgres + pgvector), a Google ADK multi-agent system using Gemini on Vertex AI, an MCP server, an eval pipeline and observability.
+
+It also adds a **tray scanner** (`POST /v1/scan`): photo in, the menu items on the tray out.
 
 Everything runs offline with `OFFLINE=1` (fake embedder, stub LLM, SQLite), so tests need no cloud account.
 
@@ -56,7 +58,7 @@ flowchart LR
     Agents --> OBS
 
     subgraph App["Existing CalSwipes app"]
-        IOS[iOS app] --> API[backend/ FastAPI<br/>Cloud Run, min-instances=1]
+        IOS[iOS app] --> API[berkeley-dining-backend/ FastAPI<br/>Cloud Run, min-instances=1]
         API --> AppDB[(Neon app DB)]
     end
 ```
@@ -64,11 +66,12 @@ flowchart LR
 ## Quickstart (offline, no credentials)
 
 ```bash
+cd agent
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 export OFFLINE=1
-python -m pipeline.ingest_menus --from-dir pipeline/fixtures --date 2026-09-14   # structured tables
+python -m pipeline.ingest_menus --from-dir ../berkeley-dining-backend/tests/fixtures --date 2026-09-14
 python -m pipeline.ingest_docs                                                  # chunks + fake embeddings
 python -m pytest                                                                # all tests
 python -m evals.run_evals                                                       # writes evals/reports/report-stub.md
@@ -82,19 +85,19 @@ curl -s localhost:8080/v1/ask -H 'content-type: application/json' \
 python -m mcp_server.server
 ```
 
-With real Google Cloud (after `gcloud auth application-default login`), unset `OFFLINE`, set the variables in `.env.example`, and run `python -m agents.adk_app "your question"`. Full cloud setup is in [deploy/README.md](deploy/README.md).
+With real Google Cloud (after `gcloud auth application-default login`), unset `OFFLINE`, set the variables in `.env.example`, and run `python -m agents.adk_app "your question"`. Full cloud setup is in [deploy/README.md](deploy/README.md) (run those commands from the repo root).
 
 ## How each piece works
 
 Written so you can explain each part in an interview in a minute or two.
 
-### 1. Backend on Cloud Run (`backend/`)
+### 1. Backend on Cloud Run (`berkeley-dining-backend/`)
 
-The CalSwipes API is a FastAPI app. Cloud Run runs any container that listens on the port in the `$PORT` environment variable, so the Dockerfile starts uvicorn with `--port ${PORT}`. `min-instances=1` keeps one container warm so the first request of the day doesn't wait for a cold start. Secrets like the database URL live in Secret Manager and are injected as env vars at deploy time. They are never baked into the image. The old always-on worker becomes a Cloud Run **job** triggered by Cloud Scheduler at 10 PM PT. `backend/scripts/bench.py` hits the main endpoints N times and reports p50/p95 latency, so the old host and Cloud Run can be compared on equal terms.
+The CalSwipes API is a FastAPI app. Cloud Run runs any container that listens on the port in the `$PORT` environment variable, so the Dockerfile starts uvicorn with `--port ${PORT}`. `min-instances=1` keeps one container warm so the first request of the day doesn't wait for a cold start. Secrets like the database URL live in Secret Manager and are injected as env vars at deploy time. They are never baked into the image. The old always-on worker becomes a Cloud Run **job** triggered by Cloud Scheduler at 10 PM PT. `berkeley-dining-backend/scripts/bench.py` hits the main endpoints N times and reports p50/p95 latency, so the old host and Cloud Run can be compared on equal terms.
 
 ### 2. Structured data pipeline (`pipeline/ingest_menus.py`)
 
-Berkeley Dining publishes each hall's daily menu as XML. The pipeline reuses the backend's parser (copied into `pipeline/vendor/`, and a test makes sure it never drifts), which rejects anything suspicious instead of guessing, like missing nutrition headers or the wrong hall/date. It then writes normalized tables: `locations`, `dates`, `meals` (with start/end times from the feed), `items` (with allergen and dietary flags), `nutrition`, and `menu_entries` linking items to meals. Upserts make re-running safe.
+Berkeley Dining publishes each hall's daily menu as XML. The pipeline imports the backend's own parser (`pipeline/backend_parser.py` puts `berkeley-dining-backend/` on the path, so there's one parser, not a copy). It rejects anything suspicious instead of guessing, like missing nutrition headers or the wrong hall/date. It then writes normalized tables: `locations`, `dates`, `meals` (with start/end times from the feed), `items` (with allergen and dietary flags), `nutrition`, and `menu_entries` linking items to meals. Upserts make re-running safe.
 
 ### 3. Unstructured data + RAG (`pipeline/ingest_docs.py`, `pipeline/store.py`)
 
@@ -136,6 +139,36 @@ It writes a markdown report to `evals/reports/`. `--mode adk` runs the same set 
 - **Tracing**: every agent, LLM call and tool call is an OpenTelemetry span. With `TRACE_EXPORTER=gcp` they show up as a waterfall in Cloud Trace: root, then menu_agent, then the `search_menu` tool.
 - **LLM-native metrics**: each LLM call records tokens in/out and latency. From those we compute **tokens/sec** (output tokens divided by LLM time) and **cost per request** from `config/pricing.json`. A per-request accumulator (a Python `contextvar`) sums everything for one question across all agents.
 
+### 8. Tray scanner (`agents/scanner.py`)
+
+`POST /v1/scan` takes a tray photo and returns which menu items are on it.
+
+```bash
+curl -s localhost:8080/v1/scan -F image=@tray.jpg -F hall=crossroads -F meal=lunch -F date=2026-09-14
+```
+
+| field | required | notes |
+|---|---|---|
+| `image` | yes | file, `image/jpeg`, `image/png` or `image/webp`, under 10 MB |
+| `hall` | yes | `crossroads`, `cafe-3`, `foothill`, `clark-kerr`, ... |
+| `meal` | yes | `breakfast`, `lunch`, `dinner`, ... |
+| `date` | no | `YYYY-MM-DD`, default today in Berkeley |
+
+Response:
+```json
+{"hall": "crossroads", "meal": "lunch", "date": "2026-09-14",
+ "matches": [{"menu_item_id": "1204", "name": "Baked Lemongrass Tofu", "confidence": 0.86}],
+ "dropped_off_menu": 0, "candidates_count": 54, "model": "gemini-2.5-flash",
+ "metrics": {"tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "latency_ms": 0.0}}
+```
+Errors look like `{"error": {"code", "message"}}`: 400 missing field, 404 `menu_unavailable`, 413 too large, 415 wrong type.
+
+How it works: it loads that hall/meal/date's menu from the structured tables (`menu_item_id` is the Eatec recipe id the iOS app already uses), then sends the photo and that candidate list to Gemini (`gemini-2.5-flash` on Vertex AI, `SCAN_MODEL` to override) with a **constrained JSON schema** whose `menu_item_id` is an `enum` of the candidate ids. The server re-validates anyway: unknown ids are dropped (counted in `dropped_off_menu`), names are replaced with the real menu name, and confidence is clamped to 0-1. There's **no portion estimation**; the app asks the user for servings. Tokens, latency and cost go through the same observability as `/v1/ask`.
+
+The same function is exposed as the ADK tool `scan_tray` (on `menu_agent`, referencing an uploaded image by `image_ref`) and as the MCP tool `scan_tray` (takes `image_base64`). With `OFFLINE=1`, `StubVision` deterministically picks 2-3 menu items without looking at the image, so tests run without credentials. See `evals/scan/README.md` for building a real labeled photo set from user confirmations.
+
+**iOS integration is TODO (Ash):** call `/v1/scan` from the app's scan flow, show matches with confidence, let the user confirm/remove/add items and set servings, then log. The agent service is deployed private (`--no-allow-unauthenticated`), so before the app can call it you'll need to either put it behind the backend (proxy route) or make it public with rate limiting and an app-attest/session check.
+
 ## How this maps to the Google FDE intern posting
 
 | Posting asks for | Where it is here |
@@ -148,6 +181,7 @@ It writes a markdown report to `evals/reports/`. `--mode adk` runs the same set 
 | MCP server | `mcp_server/server.py` |
 | Evaluation (accuracy, safety, latency) | `evals/run_evals.py`, `evals/dataset.json` |
 | Observability: tokens/sec, cost per request, tracing | `observability/telemetry.py`, `config/pricing.json` |
+| Multimodal production feature | `POST /v1/scan` tray scanner with schema-constrained Gemini output and server-side validation |
 | Working with a real product/customer | Built on CalSwipes, a live iOS app, keeping its API compatible |
 
 ## Results
@@ -160,7 +194,7 @@ It writes a markdown report to `evals/reports/`. `--mode adk` runs the same set 
 | `/v1/available-meals` | TBD after deploy | TBD after deploy |
 | `/v1/menu` | TBD after deploy | TBD after deploy |
 
-Measured with `backend/scripts/bench.py` (see deploy step 11).
+Measured with `berkeley-dining-backend/scripts/bench.py` (see deploy step 11).
 
 ### Evals
 
@@ -172,25 +206,27 @@ Measured with `backend/scripts/bench.py` (see deploy step 11).
 
 - **Dining info docs** in `pipeline/docs/sample/` are **sample text written for this demo**, each marked `sample: true` with a banner. The build sandbox couldn't reach dining.berkeley.edu. The meal times in `hall-hours.md` come from the real 2026-09-14 feed. Run `python -m pipeline.fetch_docs` to pull real pages (check the URLs in `PAGES` first), then remove the sample folder.
 - **ADK, google-genai, psycopg and the OpenTelemetry SDK/GCP exporter couldn't be installed in the build sandbox** (no PyPI access), so `agents/adk_app.py`, `VertexEmbedder` and `PostgresStore` are written against the docs but not executed yet. `tests/test_adk_app.py` runs automatically once google-adk is installed.
+- The **tray scanner** has only been run against `StubVision`. Real Gemini accuracy is unmeasured until there's a labeled photo set (`evals/scan/`).
 - The **stub LLM** is keyword rules. Its eval scores aren't a statement about Gemini.
 - **Token counts in stub mode** are estimates (characters / 4). With ADK they come from Gemini's `usage_metadata`. ADK per-call latency is approximated as time between streamed events.
-- The backend's **auth routes** (`app/auth.py`, `app/routers/`) exist in the CalSwipes repo but aren't wired into `app/main.py`, so `backend/tests/test_auth.py` doesn't match the current code. This copy keeps the API exactly as the app uses it today.
+- The backend's **auth routes** (`app/auth.py`, `app/routers/`) exist in the CalSwipes repo but aren't wired into `app/main.py`, so `berkeley-dining-backend/tests/test_auth.py` doesn't match the current code. This branch keeps the API exactly as the app uses it today.
 
 ## Dependency notes
 
-Versions in `requirements.txt` are pinned. Those marked `(*)` weren't installable in the build sandbox. If `pip install -r requirements.txt` reports a resolver conflict (most likely google-adk's own range for google-genai or opentelemetry), drop the conflicting pin, install, and re-pin with `pip freeze | grep -iE "google-adk|google-genai|opentelemetry|psycopg"`. The backend keeps its own lock file, `backend/requirements.lock`.
+Versions in `requirements.txt` are pinned. Those marked `(*)` weren't installable in the build sandbox. If `pip install -r requirements.txt` reports a resolver conflict (most likely google-adk's own range for google-genai or opentelemetry), drop the conflicting pin, install, and re-pin with `pip freeze | grep -iE "google-adk|google-genai|opentelemetry|psycopg"`. The backend keeps its own lock file, `berkeley-dining-backend/requirements.lock`.
 
 ## Repo layout
 
 ```
-backend/            CalSwipes FastAPI API (copied), Cloud Run Dockerfile, scripts/bench.py
-pipeline/           ingest_menus, ingest_docs, fetch_docs, chunking, embeddings, store (pgvector/SQLite), fixtures, docs
-agents/             spec (agent tree), tools, adk_app (Google ADK), runtime + stub_llm (offline), guardrails, service (HTTP)
-mcp_server/         MCP server
-evals/              dataset.json, run_evals.py, reports/
-observability/      logging, tracing, token/cost metrics
-config/             settings + pricing.json
-deploy/             step-by-step gcloud commands, Cloud Build config
-tests/              pytest suite (runs offline)
-Dockerfile.agent    image for the agent service and ingest jobs
+berkeley-dining-backend/   (repo root) CalSwipes FastAPI API, Cloud Run Dockerfile, scripts/bench.py
+agent/
+  pipeline/          ingest_menus, ingest_docs, fetch_docs, chunking, embeddings, store (pgvector/SQLite), backend_parser, docs
+  agents/            spec, tools, scanner, adk_app (Google ADK), runtime + stub_llm (offline), guardrails, service (HTTP)
+  mcp_server/        MCP server
+  evals/             dataset.json, run_evals.py, reports/, scan/ (tray scanner eval guide + scorer)
+  observability/     logging, tracing, token/cost metrics
+  config/            settings + pricing.json
+  deploy/            step-by-step gcloud commands, Cloud Build config
+  tests/             pytest suite (runs offline)
+  Dockerfile.agent   build from the repo root: docker build -f agent/Dockerfile.agent .
 ```
