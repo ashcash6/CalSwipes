@@ -540,6 +540,8 @@ private struct MealComboCard: View {
     let onRemove: (String) -> Void          // itemId
     let onAddItem: () -> Void
     let onAdjustServing: (String, Double) -> Void  // itemId, delta
+    var hall: Hall? = nil
+    var meal: Meal? = nil
 
     // Protein first, then carbs, then produce, then extras — most important items visible at top.
     private var sortedComponents: [MealComponent] {
@@ -556,6 +558,7 @@ private struct MealComboCard: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(CP.navy)
                 Spacer()
+                AskAboutMealButton(combo: combo, hall: hall, meal: meal)
             }
             .padding(.horizontal, CP.sp14)
             .padding(.top, 11)

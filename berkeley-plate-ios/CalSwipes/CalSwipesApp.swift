@@ -140,6 +140,8 @@ struct MainTabView: View {
     let simulator: Bool
     @State private var selectedTab = 0
     @AppStorage("appearancePref") private var appearancePref = "system"
+    @State private var subscription = SubscriptionStore()
+    @State private var assistant: AssistantRouter?
 
     private var preferredColorScheme: ColorScheme? {
         switch appearancePref {
@@ -169,6 +171,26 @@ struct MainTabView: View {
         .preferredColorScheme(preferredColorScheme)
         .toolbarBackground(.regularMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .modifier(AssistantMount(router: assistant, subscription: subscription))
+        .task {
+            if assistant == nil {
+                assistant = AssistantRouter(store: store, daily: daily, subscription: subscription)
+            }
+            await subscription.load()
+        }
+    }
+}
+
+/// Adds the floating assistant button once the router exists (created in MainTabView.task).
+private struct AssistantMount: ViewModifier {
+    let router: AssistantRouter?
+    let subscription: SubscriptionStore
+    func body(content: Content) -> some View {
+        if let router {
+            content.assistantOverlay(router: router, subscription: subscription)
+        } else {
+            content
+        }
     }
 }
 

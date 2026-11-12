@@ -783,6 +783,12 @@ private struct MakeMealSheet: View {
                 dismiss()
             }
 
+            HStack {
+                Spacer()
+                AskAboutMealButton(combo: combo, hall: selectedHall, meal: selectedMeal)
+                Spacer()
+            }
+
             Text("Portion sizes are estimates.")
                 .font(.caption)
                 .foregroundStyle(CP.textSec)
