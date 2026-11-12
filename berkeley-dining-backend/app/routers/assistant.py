@@ -37,6 +37,16 @@ _DEVICE_RE = re.compile(r"^[A-Za-z0-9-]{16,64}$")
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
+_NO_CACHE = ("unable to", "can't retrieve", "cannot retrieve", "temporarily", "try again", "no menu items were found",
+             "don't know", "not available right now")
+
+
+def _cacheable(answer: str) -> bool:
+    """Don't cache failures: a tool error or empty menu would otherwise stick for everyone for a whole day."""
+    a = answer.lower()
+    return bool(a) and not any(p in a for p in _NO_CACHE)
+
+
 class AskBody(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     hall: str = Field(default="", max_length=32)
@@ -119,7 +129,8 @@ def make_router(gate: AssistantGate, forwarder) -> APIRouter:
         cost = float(out.get("metrics", {}).get("cost_usd", 0.0))
         gate.record_cost(cost)
         public = {k: out[k] for k in ("answer", "citations", "agents_used") if k in out}
-        gate.remember(body.question, body.hall, body.meal, day, public)
+        if _cacheable(public.get("answer", "")):
+            gate.remember(body.question, body.hall, body.meal, day, public)
         log.info("assistant_ask tier=%s cost_usd=%.6f remaining=%d", decision.tier, cost, decision.remaining)
         return JSONResponse({**public, "cached": False,
                              "quota": {"tier": decision.tier, "limit": decision.limit, "remaining": decision.remaining}},
