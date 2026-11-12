@@ -20,7 +20,7 @@ class Settings:
     database_url: str = ""
     sqlite_path: str = str(ROOT / ".local" / "calswipes_agent.db")
     gcp_project: str = ""
-    gcp_location: str = "us-central1"  # Vertex AI region (Cloud Run itself is us-west1)
+    gcp_location: str = "global"  # Vertex AI region (Cloud Run itself is us-west1)
     gemini_model: str = "gemini-3.8-flash"           # final answers + vision
     planner_model: str = "gemini-3.1-flash-lite"     # cheap model for tool routing in specialist agents
     embedding_model: str = "text-embedding-005"
@@ -34,7 +34,7 @@ class Settings:
             database_url=os.environ.get("AGENT_DATABASE_URL", ""),  # deliberately NOT the app DATABASE_URL
             sqlite_path=os.environ.get("SQLITE_PATH", cls.sqlite_path),
             gcp_project=os.environ.get("GOOGLE_CLOUD_PROJECT", ""),
-            gcp_location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            gcp_location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
             gemini_model=os.environ.get("GEMINI_MODEL", cls.gemini_model),
             planner_model=os.environ.get("PLANNER_MODEL", cls.planner_model),
             embedding_model=os.environ.get("EMBEDDING_MODEL", cls.embedding_model),
