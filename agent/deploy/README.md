@@ -170,7 +170,7 @@ gcloud scheduler jobs create http calswipes-import-nightly --location "$REGION" 
 ```bash
 gcloud builds submit . --config agent/deploy/cloudbuild.agent.yaml --substitutions=_IMAGE="$AR/agent:$TAG"
 
-AGENT_ENV="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$VERTEX_LOCATION,GEMINI_MODEL=gemini-2.5-flash,PLANNER_MODEL=gemini-2.5-flash-lite,EMBEDDING_MODEL=text-embedding-005,TRACE_EXPORTER=gcp,AGENT_RUNTIME=adk"
+AGENT_ENV="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.8-flash,PLANNER_MODEL=gemini-3.1-flash-lite,EMBEDDING_MODEL=text-embedding-005,TRACE_EXPORTER=gcp,AGENT_RUNTIME=adk"
 
 # Load menus + docs into Postgres/pgvector (creates tables and the vector extension on first run).
 gcloud run jobs create calswipes-agent-ingest --image "$AR/agent:$TAG" --region "$REGION" \

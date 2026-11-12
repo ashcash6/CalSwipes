@@ -106,7 +106,7 @@ class GeminiVision:
         from google.genai import types
 
         self.types = types
-        self.model = os.environ.get("SCAN_MODEL", "gemini-2.5-flash")
+        self.model = os.environ.get("SCAN_MODEL", "gemini-3.8-flash")
         self.client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.gcp_location)
 
     def identify(self, image: bytes, mime_type: str, candidates: list[dict]) -> tuple[list, int, int]:

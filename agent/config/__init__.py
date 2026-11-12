@@ -21,8 +21,8 @@ class Settings:
     sqlite_path: str = str(ROOT / ".local" / "calswipes_agent.db")
     gcp_project: str = ""
     gcp_location: str = "us-central1"  # Vertex AI region (Cloud Run itself is us-west1)
-    gemini_model: str = "gemini-2.5-flash"           # final answers + vision
-    planner_model: str = "gemini-2.5-flash-lite"     # cheap model for tool routing in specialist agents
+    gemini_model: str = "gemini-3.8-flash"           # final answers + vision
+    planner_model: str = "gemini-3.1-flash-lite"     # cheap model for tool routing in specialist agents
     embedding_model: str = "text-embedding-005"
     embedding_dim: int = 768
     trace_exporter: str = "none"  # none | console | gcp

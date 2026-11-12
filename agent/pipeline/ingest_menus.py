@@ -9,7 +9,7 @@ the same validation rules apply: no guessed nutrition, strict hall/date checks.
 import argparse
 import time
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.robotparser import RobotFileParser
@@ -101,10 +101,14 @@ def main(argv=None):
     src.add_argument("--live", action="store_true")
     p.add_argument("--date", type=date.fromisoformat, default=None,
                    help="YYYY-MM-DD; default: today in Berkeley (America/Los_Angeles)")
+    p.add_argument("--days", type=int, default=2, help="how many days to load starting at --date (default: today+tomorrow)")
     a = p.parse_args(argv)
     day = a.date or datetime.now(ZoneInfo("America/Los_Angeles")).date()
     store = open_store(Settings.from_env())
-    n = ingest_dir(store, a.from_dir, day) if a.from_dir else ingest_live(store, day)
+    n = 0
+    for i in range(max(1, a.days)):
+        d = day + timedelta(days=i)
+        n += ingest_dir(store, a.from_dir, d) if a.from_dir else ingest_live(store, d)
     log_event("ingest_menus_done", menu_entries=n)
 
 
