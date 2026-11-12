@@ -43,6 +43,13 @@ def search_dining_info(query: str, k: int = 4) -> dict:
     return tools.search_dining_info(query, k)
 
 
+@server.tool()
+def scan_tray(image_base64: str, hall: str, meal: str, date: str = "", mime_type: str = "image/jpeg") -> dict:
+    """Identify menu items on a tray photo. Returns only items from that hall/meal/date's menu, with
+    confidence 0-1. No portion estimates. mime_type: image/jpeg | image/png | image/webp."""
+    return tools.scan_tray(hall=hall, meal=meal, date=date, image_base64=image_base64, mime_type=mime_type)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--http", action="store_true", help="serve streamable HTTP instead of stdio")

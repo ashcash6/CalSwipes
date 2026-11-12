@@ -1,6 +1,7 @@
 """HTTP API for the assistant (deploys as its own Cloud Run service).
 
     POST /v1/ask   {"question": "..."}  ->  {"answer", "citations", "agents_used", "metrics"}
+    POST /v1/scan  multipart: image (file), hall, meal, date (optional) -> {"matches": [...], ...}
     GET  /health
 
 AGENT_RUNTIME=adk (default when OFFLINE is not set) uses Google ADK + Gemini.
@@ -48,10 +49,36 @@ def make_app() -> Starlette:
             out.pop("steps", None)
         return JSONResponse(out)
 
+    async def scan(request: Request):
+        from agents import tools
+        from agents.scanner import MAX_IMAGE_BYTES, ScanError, scan_image
+        from observability.telemetry import request_scope
+
+        try:
+            form = await request.form(max_files=1, max_fields=10)
+        except Exception:
+            return JSONResponse({"error": {"code": "invalid_form", "message": "send multipart/form-data"}},
+                                status_code=400)
+        upload = form.get("image")
+        if upload is None or not hasattr(upload, "read"):
+            return JSONResponse({"error": {"code": "missing_field", "message": "image file is required"}},
+                                status_code=400)
+        image = await upload.read(MAX_IMAGE_BYTES + 1)
+        mime = (upload.content_type or "").split(";")[0].strip().lower()
+        try:
+            with request_scope("scan", hall=str(form.get("hall", ""))) as metrics:
+                out = await asyncio.to_thread(scan_image, tools._store(), image, mime, str(form.get("hall", "")),
+                                              str(form.get("meal", "")), str(form.get("date", "") or ""))
+        except ScanError as exc:
+            return JSONResponse({"error": {"code": exc.code, "message": str(exc)}}, status_code=exc.status)
+        out["metrics"] = metrics.summary()
+        return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
     async def health(_):
         return JSONResponse({"status": "ok", "runtime": runtime})
 
-    return Starlette(routes=[Route("/v1/ask", ask, methods=["POST"]), Route("/health", health)])
+    return Starlette(routes=[Route("/v1/ask", ask, methods=["POST"]), Route("/v1/scan", scan, methods=["POST"]),
+                             Route("/health", health)])
 
 
 app = make_app() if os.environ.get("CALSWIPES_AGENT_AUTOAPP", "1") == "1" else None

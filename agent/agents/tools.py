@@ -333,6 +333,35 @@ def plan_meal(hall: str, target_calories: float, target_protein_g: float = 0.0, 
             "target": {"calories_kcal": target_calories, "protein_g": target_protein_g}}
 
 
-MENU_TOOLS = [search_menu, get_nutrition, get_meal_hours, run_menu_sql]
+# ----------------------------- tray scanner -----------------------------
+
+@_traced("menu_agent")
+def scan_tray(hall: str, meal: str, date: str = "", image_ref: str = "", image_base64: str = "",
+              mime_type: str = "image/jpeg") -> dict:
+    """Identify which menu items are on a photo of a dining tray.
+
+    Only items on that hall/meal/date's menu can be returned. Does not estimate portions;
+    ask the user how many servings they took.
+
+    Args:
+        hall: hall slug, e.g. 'crossroads'.
+        meal: 'breakfast' | 'lunch' | 'dinner' | ...
+        date: 'YYYY-MM-DD'. Empty = today in Berkeley.
+        image_ref: id of an image uploaded through POST /v1/scan (given to you in the user message).
+        image_base64: alternatively, the image bytes as base64 (for MCP clients).
+        mime_type: 'image/jpeg' | 'image/png' | 'image/webp' (only used with image_base64).
+
+    Returns:
+        {"matches": [{"menu_item_id", "name", "confidence"}], "dropped_off_menu": int, ...} or {"error": ...}.
+    """
+    from agents.scanner import ScanError, resolve_image, scan_image
+    try:
+        image, mime = resolve_image(image_ref, image_base64, mime_type)
+        return scan_image(_store(), image, mime, hall, meal, date)
+    except ScanError as exc:
+        return {"error": str(exc), "code": exc.code}
+
+
+MENU_TOOLS = [search_menu, get_nutrition, get_meal_hours, run_menu_sql, scan_tray]
 POLICY_TOOLS = [search_dining_info]
 NUTRITION_TOOLS = [plan_meal, get_nutrition]

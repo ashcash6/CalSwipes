@@ -5,7 +5,7 @@ import json
 from agents.service import make_app
 
 
-def asgi(app, method, path, body=b""):
+def asgi(app, method, path, body=b"", content_type="application/json"):
     sent, msgs = [], [{"type": "http.request", "body": body, "more_body": False}]
 
     async def receive():
@@ -14,7 +14,7 @@ def asgi(app, method, path, body=b""):
     async def send(m):
         sent.append(m)
 
-    scope = {"type": "http", "method": method, "path": path, "headers": [(b"content-type", b"application/json")],
+    scope = {"type": "http", "method": method, "path": path, "headers": [(b"content-type", content_type.encode()), (b"content-length", str(len(body)).encode())],
              "query_string": b"", "http_version": "1.1", "scheme": "http", "server": ("t", 80), "client": ("c", 1),
              "root_path": ""}
     asyncio.run(app(scope, receive, send))

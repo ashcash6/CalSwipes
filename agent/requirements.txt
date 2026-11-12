@@ -6,6 +6,7 @@ google-genai==2.33.0                     # (*) Gemini + Vertex AI embeddings
 mcp==2.3.0                               # MCP server SDK (v2 API: MCPServer)
 starlette==1.7.0                         # agent HTTP service
 uvicorn==0.54.0
+python-multipart==0.0.32                 # multipart uploads for POST /v1/scan
 pydantic==2.13.5
 defusedxml==0.7.1                        # safe XML parsing for the Eatec feed
 numpy==2.5.3                             # offline vector search

@@ -17,7 +17,7 @@ def test_tools_listed_and_callable(store):
         return names, res
 
     names, res = asyncio.run(go())
-    assert names == {"search_menu", "get_nutrition", "search_dining_info"}
+    assert names == {"search_menu", "get_nutrition", "search_dining_info", "scan_tray"}
     assert not res.is_error
     assert json.loads(res.content[0].text)["matches"][0]["protein_g"] == pytest.approx(13.92)
 

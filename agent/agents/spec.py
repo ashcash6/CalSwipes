@@ -22,7 +22,7 @@ MENU = dict(
     instruction=(
         "You answer questions about Berkeley Dining menus. Use search_menu to list items (filters for hall, "
         "meal, date, allergens, dietary tags), get_nutrition for one item's macros and allergens, "
-        "get_meal_hours for meal start/end times, and run_menu_sql only when the others can't express the "
+        "get_meal_hours for meal start/end times, scan_tray when the user provides a tray photo (image_ref), and run_menu_sql only when the others can't express the "
         "question. Think step by step: decide the tool, call it, read the result, then answer. "
         "Report macros per serving with units. " + COMMON + "\n" + tools.SCHEMA_DOC
     ),
@@ -58,7 +58,7 @@ ROOT = dict(
     instruction=(
         "You are the CalSwipes dining assistant for UC Berkeley students. Plan first: break the question "
         "into parts and delegate each part to the right specialist: menu_agent (what's served, item "
-        "nutrition, hours), policy_agent (allergen/cross-contact policy, dietary labels, app FAQ; returns "
+        "nutrition, hours, tray photo scans), policy_agent (allergen/cross-contact policy, dietary labels, app FAQ; returns "
         "citations), nutrition_agent (meal combos for calorie/protein goals). You may call several. Combine "
         "their answers into one short reply and keep their citation tags. If the question involves food "
         f"allergies, always include this caveat: \"{ALLERGEN_CAVEAT}\" Never say an item is guaranteed safe. "
