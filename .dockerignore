@@ -1,0 +1,19 @@
+# Applies only to builds whose context is the repo root (agent/Dockerfile.agent).
+# The backend image builds from berkeley-dining-backend/ with its own .dockerignore.
+.git
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.env
+**/.env.*
+**/.venv
+berkeley-plate-ios
+menus
+*.md
+agent/tests
+agent/evals
+agent/deploy
+agent/.local
+berkeley-dining-backend/tests
+berkeley-dining-backend/docs
+berkeley-dining-backend/migrations

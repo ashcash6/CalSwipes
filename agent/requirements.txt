@@ -1,0 +1,17 @@
+# CalSwipes Agent (pipeline, agents, MCP server, evals, observability). Backend has its own backend/requirements.lock.
+# Pinned exact versions. Versions marked (*) could not be installed/tested in the build sandbox (no PyPI access);
+# if pip reports a resolver conflict, see README "Dependency notes".
+google-adk==2.13.0                       # (*) multi-agent framework
+google-genai==2.33.0                     # (*) Gemini + Vertex AI embeddings
+mcp==2.3.0                               # MCP server SDK (v2 API: MCPServer)
+starlette==1.7.0                         # agent HTTP service
+uvicorn==0.54.0
+pydantic==2.13.5
+defusedxml==0.7.1                        # safe XML parsing for the Eatec feed
+numpy==2.5.3                             # offline vector search
+psycopg[binary]==3.3.5                   # (*) Postgres / Neon driver
+tzdata==2026.4
+opentelemetry-api==1.45.0
+opentelemetry-sdk==1.45.0                # (*)
+opentelemetry-exporter-gcp-trace==1.9.0  # (*) Cloud Trace exporter
+pytest==9.1.1

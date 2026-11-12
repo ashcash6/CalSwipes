@@ -1,0 +1,6 @@
+# Builds agent/Dockerfile.agent with the repo root as context. Run from the REPO ROOT:
+#   gcloud builds submit . --config agent/deploy/cloudbuild.agent.yaml --substitutions=_IMAGE="$AR/agent:$TAG"
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "agent/Dockerfile.agent", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]

@@ -1,0 +1,26 @@
+# CalSwipes Agent image: /v1/ask + /v1/scan API (Cloud Run service) and ingest jobs (Cloud Run jobs).
+# Build from the REPO ROOT so the backend parser can be copied in:
+#   docker build -f agent/Dockerfile.agent -t calswipes-agent .
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080 \
+    CALSWIPES_BACKEND_DIR=/srv/backend
+
+WORKDIR /srv/agent
+COPY agent/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Reuse the backend's XML parser (only these two modules; the agent doesn't need FastAPI/SQLAlchemy).
+COPY berkeley-dining-backend/app/__init__.py berkeley-dining-backend/app/parser.py \
+     berkeley-dining-backend/app/schemas.py /srv/backend/app/
+
+COPY agent/config ./config
+COPY agent/observability ./observability
+COPY agent/pipeline ./pipeline
+COPY agent/agents ./agents
+COPY agent/mcp_server ./mcp_server
+
+RUN useradd --create-home agent
+USER agent
+EXPOSE 8080
+CMD exec uvicorn agents.service:app --host 0.0.0.0 --port ${PORT}
