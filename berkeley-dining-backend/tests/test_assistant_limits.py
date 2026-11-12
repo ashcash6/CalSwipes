@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app.assistant_limits import (ASK, FREE, PREMIUM, SCAN, AssistantConfig, AssistantGate, MemoryUsageStore,
+from app.assistant_limits import (ASK, FREE, PREMIUM, PROMO, SCAN, AssistantConfig, AssistantGate, MemoryUsageStore,
                                   berkeley_today, cache_key, normalize_question, tier_for)
 
 DAY = date(2026, 11, 20)
@@ -46,10 +46,10 @@ def test_premium_caps():
 
 def test_promo_gives_everyone_premium_through_the_end_date():
     cfg = AssistantConfig(promo_free_until=DAY)
-    assert tier_for(cfg, DAY, False) == ("promo", PREMIUM)
+    assert tier_for(cfg, DAY, False) == ("promo", PROMO)
     assert tier_for(cfg, DAY + timedelta(days=1), False) == ("free", FREE)
     g = AssistantGate(cfg, MemoryUsageStore())
-    assert sum(d.allowed for d in take(g, ASK, 31)) == 30
+    assert sum(d.allowed for d in take(g, ASK, 6)) == 5
 
 
 def test_promo_from_env():
