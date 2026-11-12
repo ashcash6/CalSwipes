@@ -1,9 +1,15 @@
 .git
 .env
+.env.*
+!.env.example
 .venv
+venv
 __pycache__
+*.pyc
 .pytest_cache
 tests
 docs
-fly.toml
+scripts
 compose.yaml
+fly.toml
+README.md
