@@ -15,8 +15,8 @@ def upgrade():
         sa.Column("user_id", sa.String(36),
                   sa.ForeignKey("users.id", ondelete="CASCADE"),
                   primary_key=True),
-        sa.Column("allergies", JSONB, nullable=False, server_default="'[]'::jsonb"),
-        sa.Column("dietary_preferences", JSONB, nullable=False, server_default="'[]'::jsonb"),
+        sa.Column("allergies", JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")),
+        sa.Column("dietary_preferences", JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
 
