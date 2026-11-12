@@ -169,4 +169,11 @@ def create_app(settings=None, engine=None):
         )
         return JSONResponse({"status": "ok"}, headers={"Cache-Control": "no-store"})
 
+    # AI assistant proxy (/assistant/ask, /assistant/scan). Only mounted when ASSISTANT_AGENT_URL is set,
+    # so existing deployments and the iOS app's current endpoints are unaffected.
+    from app.routers.assistant import build_assistant_router
+    assistant = build_assistant_router(engine)
+    if assistant is not None:
+        app.include_router(assistant)
+
     return app

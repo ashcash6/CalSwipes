@@ -10,7 +10,7 @@ dependencies = [
   "fastapi==0.141.1", "uvicorn==0.53.0", "SQLAlchemy==2.0.52",
   "psycopg[binary]==3.3.5", "alembic==1.20.0", "httpx==0.28.1",
   "defusedxml==0.7.1", "APScheduler==3.11.3", "tzdata==2026.4",
-  "PyJWT[crypto]==2.14.0",
+  "PyJWT[crypto]==2.14.0", "python-multipart==0.0.32",
 ]
 
 [project.optional-dependencies]
