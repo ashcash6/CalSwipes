@@ -23,7 +23,7 @@ struct CalSwipesPlusPaywall: View {
             Spacer()
 
             if subscription.promoActive {
-                Text("Everyone gets CalSwipes+ limits free during the launch promo.")
+                Text("Launch promo: everyone gets 5 AI answers and 2 scans a day, free.")
                     .font(.footnote).foregroundStyle(CP.textSec).multilineTextAlignment(.center)
             }
             if let error = subscription.purchaseError {

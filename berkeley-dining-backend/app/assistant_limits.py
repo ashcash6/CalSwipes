@@ -37,6 +37,7 @@ class Limits:
 
 FREE = Limits(asks=3, scans=1)
 PREMIUM = Limits(asks=30, scans=5)
+PROMO = Limits(asks=5, scans=2)  # launch promo: everyone, free
 
 MESSAGES = {
     "spend_cap": "CalSwipes' AI assistant has hit its budget for today. Try again tomorrow! "
@@ -82,7 +83,7 @@ def promo_active(cfg: AssistantConfig, today: date) -> bool:
 def tier_for(cfg: AssistantConfig, today: date, premium_claimed: bool, premium_verified: bool = False):
     """Returns ('promo' | 'premium' | 'free', Limits)."""
     if promo_active(cfg, today):
-        return "promo", PREMIUM
+        return "promo", PROMO
     if premium_verified or (premium_claimed and cfg.trust_client_entitlement):
         return "premium", PREMIUM
     return "free", FREE
