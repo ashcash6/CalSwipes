@@ -1,10 +1,10 @@
 // Copy Local.xcconfig.example to Local.xcconfig for your real values.
 APP_BUNDLE_ID = com.ashkon.calswipes
-API_BASE_URL = https:/$()/countyourcals.onrender.com
+API_BASE_URL = https:/$()/calswipes-api-25p65zxzxa-uw.a.run.app
 // CalSwipes+ subscription product id (placeholder: must match App Store Connect).
 PLUS_PRODUCT_ID = com.ashkon.calswipes.plus.monthly
 // Launch promo: everyone gets CalSwipes+ limits through this date (YYYY-MM-DD). Empty = no promo.
 // Keep in sync with the backend's PROMO_FREE_UNTIL.
-PROMO_FREE_UNTIL =
+PROMO_FREE_UNTIL = 2026-12-31
 
 #include? "Local.xcconfig"

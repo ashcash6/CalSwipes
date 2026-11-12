@@ -155,7 +155,9 @@ private struct MessageBubble: View {
             }
         case .assistant:
             VStack(alignment: .leading, spacing: CP.sp8) {
-                Text(message.text).textSelection(.enabled)
+                Text((try? AttributedString(markdown: message.text,
+                        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(message.text))
+                    .textSelection(.enabled)
                 ForEach(message.scanMatches) { m in
                     HStack {
                         Image(systemName: "checkmark.circle")

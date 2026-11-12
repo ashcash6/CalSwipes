@@ -30,22 +30,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         GENERATE_INFOPLIST_FILE: NO
-    info:
-      path: Config/Info.plist
-      properties:
-        CFBundleDisplayName: CalSwipes
-        CFBundleShortVersionString: '1.0.0'
-        CFBundleVersion: '1'
-        APIBaseURL: $(API_BASE_URL)
-        CalSwipesPlusProductID: $(PLUS_PRODUCT_ID)
-        PromoFreeUntil: $(PROMO_FREE_UNTIL)
-        UILaunchScreen: {}
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: CalSwipes uses your camera to scan nutrition labels.
-    entitlements:
-      path: Config/CalSwipes.entitlements
-      properties:
-        com.apple.developer.applesignin: [Default]
+        INFOPLIST_FILE: Config/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/CalSwipes.entitlements
   CalSwipesTests:
     type: bundle.unit-test
     platform: iOS
