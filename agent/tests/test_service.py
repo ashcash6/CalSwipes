@@ -37,3 +37,9 @@ def test_ask_validation():
     app = make_app()
     assert asgi(app, "POST", "/v1/ask", b"{}")[0] == 400
     assert asgi(app, "POST", "/v1/ask", json.dumps({"question": "x" * 2000}).encode())[0] == 413
+
+
+def test_ask_with_context(store):
+    status, out = asgi(make_app(), "POST", "/v1/ask",
+                       json.dumps({"question": "What time is dinner?", "hall": "foothill", "date": "2026-09-14"}).encode())
+    assert status == 200 and "16:30" in out["answer"]

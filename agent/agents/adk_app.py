@@ -10,7 +10,8 @@ Environment (see deploy/README.md):
     GOOGLE_GENAI_USE_VERTEXAI=TRUE
     GOOGLE_CLOUD_PROJECT=<your project id>
     GOOGLE_CLOUD_LOCATION=us-central1
-    GEMINI_MODEL=gemini-2.5-flash
+    GEMINI_MODEL=gemini-2.5-flash          # root planner (final answer) + tray scanner
+    PLANNER_MODEL=gemini-2.5-flash-lite    # specialist agents (tool routing)
 
 Try it locally (after `gcloud auth application-default login`):
     python -m agents.adk_app "What vegan options are at Crossroads for lunch?"
@@ -27,7 +28,7 @@ import uuid
 from agents import spec
 from agents.guardrails import apply_guardrails
 from agents.runtime import CITATION
-from config import Settings
+from config import Settings, model_for_agent
 from observability.telemetry import record_llm_call, request_scope, setup_logging, setup_tracing
 
 APP_NAME = "calswipes_agent"
@@ -39,7 +40,7 @@ def build_adk_agent(settings: Settings | None = None):
     settings = settings or Settings.from_env()
 
     def make(cfg, is_root=False):
-        kwargs = dict(name=cfg["name"], model=settings.gemini_model, description=cfg["description"],
+        kwargs = dict(name=cfg["name"], model=model_for_agent(cfg["name"], settings), description=cfg["description"],
                       instruction=cfg["instruction"], tools=list(cfg.get("tools", [])))
         if cfg.get("sub_agents"):
             kwargs["sub_agents"] = [make(s) for s in cfg["sub_agents"]]
@@ -59,20 +60,21 @@ class ADKAssistant:
         self.sessions = InMemorySessionService()
         self.runner = Runner(agent=build_adk_agent(self.settings), app_name=APP_NAME, session_service=self.sessions)
 
-    async def ask(self, question: str, user_id: str = "anon") -> dict:
+    async def ask(self, question: str, user_id: str = "anon", context: str = "") -> dict:
         from google.genai import types
 
         with request_scope("ask", runtime="adk") as metrics:
             session = await self.sessions.create_session(app_name=APP_NAME, user_id=user_id,
                                                          session_id=uuid.uuid4().hex)
-            message = types.Content(role="user", parts=[types.Part(text=question)])
+            message = types.Content(role="user", parts=[types.Part(text=(context + question) if context else question)])
             final, agents, last = "", set(), time.perf_counter()
             async for event in self.runner.run_async(user_id=user_id, session_id=session.id, new_message=message):
                 now = time.perf_counter()
                 usage = getattr(event, "usage_metadata", None)
                 if usage is not None:
                     # Latency per LLM call ~= time since the previous event (ADK streams one event per model turn).
-                    record_llm_call(event.author, self.settings.gemini_model, usage.prompt_token_count or 0,
+                    record_llm_call(event.author, model_for_agent(event.author, self.settings),
+                                    usage.prompt_token_count or 0,
                                     usage.candidates_token_count or 0, (now - last) * 1000)
                 last = now
                 if event.author:

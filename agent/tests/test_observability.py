@@ -42,3 +42,14 @@ def test_span_works_without_sdk():
 
 def test_setup_tracing_none_is_noop():
     assert t.setup_tracing("none") is False
+
+
+def test_model_routing_and_pricing():
+    from config import Settings, model_for_agent
+    s = Settings()
+    assert model_for_agent("root_planner", s) == "gemini-2.5-flash"
+    assert model_for_agent("scanner", s) == "gemini-2.5-flash"
+    assert model_for_agent("menu_agent", s) == "gemini-2.5-flash-lite"
+    assert model_for_agent("policy_agent", s) == "gemini-2.5-flash-lite"
+    # flash-lite is priced in config/pricing.json ($0.10 in / $0.40 out per 1M)
+    assert t.cost_usd("gemini-2.5-flash-lite", 1_000_000, 1_000_000) == pytest.approx(0.50)

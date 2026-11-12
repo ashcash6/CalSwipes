@@ -38,14 +38,16 @@ def make_app() -> Starlette:
             return JSONResponse({"error": "question is required"}, status_code=400)
         if len(question) > MAX_QUESTION_CHARS:
             return JSONResponse({"error": f"question must be under {MAX_QUESTION_CHARS} characters"}, status_code=413)
+        ctx_parts = [f"{k}={str(body.get(k))[:32]}" for k in ("hall", "meal", "date") if body.get(k)]
+        context = f"[context: {', '.join(ctx_parts)}] " if ctx_parts else ""
         if runtime == "adk":
             if "adk" not in state:
                 from agents.adk_app import ADKAssistant
                 state["adk"] = ADKAssistant(settings)
-            out = await state["adk"].ask(question)
+            out = await state["adk"].ask(question, context=context)
         else:
             from agents.runtime import answer_question
-            out = await asyncio.to_thread(answer_question, question)
+            out = await asyncio.to_thread(answer_question, f"{question} {' '.join(ctx_parts)}".strip())
             out.pop("steps", None)
         return JSONResponse(out)
 
