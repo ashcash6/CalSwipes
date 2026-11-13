@@ -83,7 +83,10 @@ def promo_active(cfg: AssistantConfig, today: date) -> bool:
 def tier_for(cfg: AssistantConfig, today: date, premium_claimed: bool, premium_verified: bool = False):
     """Returns ('promo' | 'premium' | 'free', Limits)."""
     if promo_active(cfg, today):
-        return "promo", PROMO
+        # Env overrides let us lift the promo caps during testing without a code change.
+        asks = int(os.environ.get("ASSISTANT_PROMO_ASKS", PROMO.asks))
+        scans = int(os.environ.get("ASSISTANT_PROMO_SCANS", PROMO.scans))
+        return "promo", Limits(asks=asks, scans=scans)
     if premium_verified or (premium_claimed and cfg.trust_client_entitlement):
         return "premium", PREMIUM
     return "free", FREE
