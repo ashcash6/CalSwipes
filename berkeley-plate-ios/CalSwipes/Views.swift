@@ -262,13 +262,9 @@ struct MenuScreen: View {
             ContentUnavailableView("No published menu", systemImage: "calendar.badge.exclamationmark",
                 description: Text("Berkeley has not listed this meal period for \(store.selectedHall.title). Try another meal."))
         } else {
-            Button {
+            CPPrimaryButton(title: "Make My Meal", icon: "sparkles") {
                 showMakeMeal = true
-            } label: {
-                Label("Suggest a meal", systemImage: "sparkles")
-                    .frame(maxWidth: .infinity).padding(.vertical, 8)
             }
-            .buttonStyle(.borderedProminent)
             if hiddenCount > 0 {
                 Label(
                     "\(hiddenCount) item\(hiddenCount == 1 ? "" : "s") hidden for your dietary restrictions",
