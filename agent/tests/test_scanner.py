@@ -49,7 +49,8 @@ def test_validation_drops_off_menu_and_fixes_names():
     cands = [{"menu_item_id": "556", "name": "Scrambled Eggs", "category": "x"}]
     matches, dropped = validate_matches([{"menu_item_id": "556", "name": "eggz", "confidence": 2},
                                          {"menu_item_id": "999", "name": "Steak", "confidence": 0.9}], cands)
-    assert matches == [{"menu_item_id": "556", "name": "Scrambled Eggs", "confidence": 1.0}]
+    assert matches == [{"menu_item_id": "556", "name": "Scrambled Eggs", "confidence": 1.0,
+                        "servings": 1.0, "serving": None}]
     assert dropped == 1
 
 
@@ -136,3 +137,13 @@ def test_scan_scoring_math():
     s = score([{"predicted": ["a", "b"], "confirmed": ["a", "c"]}, {"predicted": ["x"], "confirmed": ["x"]}])
     assert s["precision"] == pytest.approx(2 / 3) and s["recall"] == pytest.approx(2 / 3)
     assert s["exact_match"] == 0.5
+
+
+def test_servings_snap_and_macros_attached():
+    cands = [{"menu_item_id": "7", "name": "Rice", "category": "x", "serving_qty": 4.0, "serving_unit": "oz",
+              "calories_kcal": 150, "protein_g": 3, "carbs_g": 33, "fat_g": 0.5}]
+    matches, _ = validate_matches([{"menu_item_id": "7", "name": "rice", "confidence": 0.8, "servings": 1.7}], cands)
+    assert matches[0]["servings"] == 1.5 and matches[0]["serving"] == "4 oz"
+    assert matches[0]["macros"]["calories_kcal"] == 150
+    m2, _ = validate_matches([{"menu_item_id": "7", "name": "rice", "confidence": 0.8, "servings": 9}], cands)
+    assert m2[0]["servings"] == 3.0

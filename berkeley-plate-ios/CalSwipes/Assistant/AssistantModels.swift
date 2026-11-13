@@ -86,6 +86,12 @@ struct ScanMatch: Codable, Identifiable, Equatable {
     let menuItemId: String
     let name: String
     let confidence: Double
+    /// Model's estimate of how many listed servings are on the tray (0.5...3). User adjusts before logging.
+    var servings: Double?
+    /// e.g. "4 oz"
+    var serving: String?
+    /// Nutrition for ONE listed serving.
+    var macros: Macros?
 }
 
 /// Errors from Tier 3 that the UI turns into friendly messages (and maybe the paywall).

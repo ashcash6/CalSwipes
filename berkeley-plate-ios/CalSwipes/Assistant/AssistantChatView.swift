@@ -19,7 +19,7 @@ struct AssistantChatView: View {
                         LazyVStack(alignment: .leading, spacing: CP.sp12) {
                             header
                             ForEach(router.messages) { message in
-                                MessageBubble(message: message).id(message.id)
+                                MessageBubble(message: message, onLogScan: { router.logScan($0) }).id(message.id)
                             }
                             if router.isThinking {
                                 HStack(spacing: CP.sp8) {
@@ -183,6 +183,7 @@ private struct Chip: View {
 
 private struct MessageBubble: View {
     let message: ChatMessage
+    var onLogScan: (([(ScanMatch, Double)]) -> Bool)? = nil
 
     var body: some View {
         switch message.role {
@@ -199,14 +200,8 @@ private struct MessageBubble: View {
                 Text((try? AttributedString(markdown: message.text,
                         options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(message.text))
                     .textSelection(.enabled)
-                ForEach(message.scanMatches) { m in
-                    HStack {
-                        Image(systemName: "checkmark.circle")
-                        Text(m.name)
-                        Spacer()
-                        Text("\(Int(m.confidence * 100))%").font(.caption).foregroundStyle(CP.textSec)
-                    }
-                    .font(.subheadline)
+                if !message.scanMatches.isEmpty, let onLogScan {
+                    ScanResultCard(matches: message.scanMatches, onLog: onLogScan)
                 }
                 if !message.citations.isEmpty {
                     Text("Sources: " + message.citations.joined(separator: ", "))
@@ -225,5 +220,83 @@ private struct MessageBubble: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .multilineTextAlignment(.center)
         }
+    }
+}
+
+
+/// Tray-scan results: check items on/off, adjust estimated servings, see totals, log.
+private struct ScanResultCard: View {
+    let matches: [ScanMatch]
+    let onLog: ([(ScanMatch, Double)]) -> Bool
+    @State private var servings: [String: Double] = [:]
+    @State private var included: Set<String> = []
+    @State private var logged = false
+
+    private func amount(_ m: ScanMatch) -> Double { servings[m.id] ?? m.servings ?? 1 }
+
+    private var picks: [(ScanMatch, Double)] {
+        matches.filter { included.contains($0.id) }.map { ($0, amount($0)) }
+    }
+
+    private var totalKcal: Int {
+        Int(picks.reduce(0) { $0 + ($1.0.macros?.caloriesKcal ?? 0) * $1.1 }.rounded())
+    }
+    private var totalProtein: Int {
+        Int(picks.reduce(0) { $0 + ($1.0.macros?.proteinG ?? 0) * $1.1 }.rounded())
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CP.sp8) {
+            ForEach(matches) { m in
+                HStack(spacing: CP.sp8) {
+                    Button {
+                        if included.contains(m.id) { included.remove(m.id) } else { included.insert(m.id) }
+                    } label: {
+                        Image(systemName: included.contains(m.id) ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(included.contains(m.id) ? CP.navy : CP.textSec)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(logged)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(m.name).font(.subheadline)
+                        Text(detail(m)).font(.caption).foregroundStyle(CP.textSec)
+                    }
+                    Spacer()
+                    Stepper(value: Binding(get: { amount(m) }, set: { servings[m.id] = $0 }),
+                            in: 0.5...4, step: 0.5) {
+                        Text("\(amount(m).formatted())×").font(.subheadline.monospacedDigit())
+                    }
+                    .fixedSize()
+                    .disabled(logged || !included.contains(m.id))
+                }
+            }
+            HStack {
+                Text("Total: \(totalKcal) kcal · \(totalProtein)g protein")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button(logged ? "Logged" : "Log meal") {
+                    if onLog(picks) { logged = true }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(CP.navy)
+                .disabled(logged || picks.isEmpty)
+            }
+            Text("Servings are estimates from the photo. Adjust before logging.")
+                .font(.caption2).foregroundStyle(CP.textSec)
+        }
+        .padding(CP.sp12)
+        .background(CP.textSec.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r16))
+        .onAppear {
+            // Pre-check confident matches; leave "maybe" ones for the user to tick.
+            if included.isEmpty { included = Set(matches.filter { $0.confidence >= 0.5 }.map(\.id)) }
+        }
+    }
+
+    private func detail(_ m: ScanMatch) -> String {
+        var parts: [String] = []
+        if let s = m.serving { parts.append("per \(s)") }
+        if let k = m.macros?.caloriesKcal { parts.append("\(Int((k * amount(m)).rounded())) kcal") }
+        if m.confidence < 0.5 { parts.append("not sure") }
+        return parts.joined(separator: " · ")
     }
 }

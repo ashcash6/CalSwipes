@@ -8,7 +8,7 @@ How it works:
 3. Validate server-side anyway: anything whose id isn't a candidate is dropped,
    names are replaced with the canonical menu name, confidence is clamped to 0..1.
 
-No portion estimation: the client asks the user for servings.
+Servings are a rough estimate (0.5-3, snapped to halves); the client shows them as editable steppers.
 OFFLINE=1 uses StubVision (deterministic, does not look at the image).
 """
 import base64
@@ -28,11 +28,13 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_MATCHES = 12
 
 PROMPT = """You identify food on a UC Berkeley dining hall tray.
-Only choose items from this menu (JSON list of {{menu_item_id, name, category}}):
+Only choose items from this menu (JSON list of {{menu_item_id, name, category, serving}}):
 {candidates}
 Return every menu item you can see on the tray with a confidence from 0 to 1.
 If you can't tell between two similar items, return both with lower confidence.
-Do not estimate portions. If nothing on the tray matches the menu, return an empty list."""
+For each item, estimate how many of its listed servings are on the tray (0.5, 1, 1.5, 2, 2.5 or 3).
+A standard plate scoop of a side is about 1 serving; a full plate of one item is about 2.
+If nothing on the tray matches the menu, return an empty list."""
 
 
 class ScanError(ValueError):
@@ -47,10 +49,33 @@ def today_berkeley() -> str:
 
 def load_candidates(store, hall: str, meal: str, date: str) -> list[dict]:
     return store.query(
-        "SELECT DISTINCT i.recipe_id AS menu_item_id, i.name, i.category FROM menu_entries e "
+        "SELECT DISTINCT i.recipe_id AS menu_item_id, i.name, i.category, n.serving_qty, n.serving_unit, "
+        "n.calories_kcal, n.protein_g, n.carbs_g, n.fat_g FROM menu_entries e "
         "JOIN meals m ON m.id = e.meal_id JOIN locations l ON l.id = m.location_id JOIN items i ON i.id = e.item_id "
+        "LEFT JOIN nutrition n ON n.item_id = i.id "
         "WHERE l.slug = ? AND m.period = ? AND m.service_date = ? ORDER BY i.name",
         (hall.strip().lower(), meal.strip().lower(), date))
+
+
+def serving_label(c: dict) -> str | None:
+    q, u = c.get("serving_qty"), c.get("serving_unit")
+    if q is None or not u:
+        return None
+    return f"{q:g} {u}"
+
+
+def prompt_candidates(candidates: list[dict]) -> list[dict]:
+    """What the model sees: id, name, category, serving. Nutrition stays server-side."""
+    return [{"menu_item_id": c["menu_item_id"], "name": c["name"], "category": c.get("category"),
+             "serving": serving_label(c)} for c in candidates]
+
+
+def snap_servings(value) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    return min(3.0, max(0.5, round(v * 2) / 2))
 
 
 def response_schema(candidate_ids: list[str]) -> dict:
@@ -60,8 +85,9 @@ def response_schema(candidate_ids: list[str]) -> dict:
             "type": "OBJECT",
             "properties": {"menu_item_id": {"type": "STRING", "enum": candidate_ids},
                            "name": {"type": "STRING"},
-                           "confidence": {"type": "NUMBER"}},
-            "required": ["menu_item_id", "name", "confidence"]}}},
+                           "confidence": {"type": "NUMBER"},
+                           "servings": {"type": "NUMBER"}},
+            "required": ["menu_item_id", "name", "confidence", "servings"]}}},
         "required": ["items"],
     }
 
@@ -80,7 +106,13 @@ def validate_matches(raw_items, candidates: list[dict]) -> tuple[list[dict], int
         except (TypeError, ValueError):
             conf = 0.0
         if mid not in best or conf > best[mid]["confidence"]:
-            best[mid] = {"menu_item_id": mid, "name": by_id[mid]["name"], "confidence": round(conf, 3)}
+            c = by_id[mid]
+            m = {"menu_item_id": mid, "name": c["name"], "confidence": round(conf, 3),
+                 "servings": snap_servings(it.get("servings", 1)), "serving": serving_label(c)}
+            if c.get("calories_kcal") is not None:
+                m["macros"] = {k: round(float(c.get(k) or 0), 2)
+                               for k in ("calories_kcal", "protein_g", "carbs_g", "fat_g")}
+            best[mid] = m
     matches = sorted(best.values(), key=lambda m: (-m["confidence"], m["name"]))[:MAX_MATCHES]
     return matches, dropped
 
@@ -93,7 +125,8 @@ class StubVision:
     def identify(self, image: bytes, mime_type: str, candidates: list[dict]) -> tuple[list, int, int]:
         ranked = sorted(candidates, key=lambda c: hashlib.sha256(image + c["menu_item_id"].encode()).hexdigest())
         n = 2 + (image[0] % 2 if image else 0)
-        items = [{"menu_item_id": c["menu_item_id"], "name": c["name"], "confidence": round(0.9 - 0.2 * i, 2)}
+        items = [{"menu_item_id": c["menu_item_id"], "name": c["name"], "confidence": round(0.9 - 0.2 * i, 2),
+                  "servings": 1}
                  for i, c in enumerate(ranked[:n])]
         return items, 258 + len(json.dumps(candidates)) // 4, len(json.dumps(items)) // 4
 
@@ -114,7 +147,7 @@ class GeminiVision:
         resp = self.client.models.generate_content(
             model=self.model,
             contents=[t.Part.from_bytes(data=image, mime_type=mime_type),
-                      PROMPT.format(candidates=json.dumps(candidates, ensure_ascii=False))],
+                      PROMPT.format(candidates=json.dumps(prompt_candidates(candidates), ensure_ascii=False))],
             config=t.GenerateContentConfig(
                 temperature=0, response_mime_type="application/json",
                 response_schema=response_schema([c["menu_item_id"] for c in candidates])),

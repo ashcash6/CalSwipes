@@ -154,7 +154,7 @@ final class AssistantRouter {
             let r = try await cloud.scan(jpeg: jpeg, hall: hall, meal: meal, entitlement: entitlementHeaders)
             let text = r.matches.isEmpty
                 ? "I couldn't match anything on the tray to today's \(meal.title.lowercased()) menu at \(hall.title)."
-                : "Here's what I see. Confirm the items and set servings before logging:"
+                : "Here's what I see. Check the items and servings, then tap Log meal:"
             track(r.quota)
             messages.append(ChatMessage(role: .assistant, text: text + quotaNote(r.quota), tier: .cloud, scanMatches: r.matches))
         } catch {
@@ -201,6 +201,22 @@ final class AssistantRouter {
     private func quotaNote(_ quota: CloudAssistantClient.Quota?) -> String {
         guard let q = quota, q.remaining <= 1 else { return "" }
         return q.remaining == 0 ? "\n\n(That was your last cloud answer for today.)" : "\n\n(1 cloud answer left today.)"
+    }
+
+    /// Logs the confirmed tray items. `picks` = (match, servings). Returns false if nothing had nutrition.
+    @discardableResult
+    func logScan(_ picks: [(ScanMatch, Double)]) -> Bool {
+        let usable = picks.filter { $0.1 > 0 && $0.0.macros != nil }
+        guard !usable.isEmpty else { return false }
+        func sum(_ k: KeyPath<Macros, Double>) -> Double { usable.reduce(0) { $0 + $1.0.macros![keyPath: k] * $1.1 } }
+        let total = Macros(caloriesKcal: sum(\.caloriesKcal), proteinG: sum(\.proteinG),
+                           carbsG: sum(\.carbsG), fatG: sum(\.fatG))
+        let hall = context.hall ?? store.selectedHall
+        let meal = context.meal ?? store.selectedMeal
+        let name = usable.map { $0.1 == 1 ? $0.0.name : "\($0.0.name) ×\($0.1.formatted())" }.joined(separator: ", ")
+        daily.logDiningItem(name: name, macros: total, hallTitle: hall.title, mealTitle: meal.title)
+        messages.append(ChatMessage(role: .system, text: "Logged \(Int(total.caloriesKcal.rounded())) kcal, \(Int(total.proteinG.rounded()))g protein."))
+        return true
     }
 
     private func track(_ quota: CloudAssistantClient.Quota?) {
