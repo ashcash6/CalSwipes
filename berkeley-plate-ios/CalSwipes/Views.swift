@@ -24,6 +24,8 @@ struct MenuScreen: View {
     @State private var search = ""
     @State private var showMakeMeal = false
     @State private var macroFilter: MacroFilter = .all
+    @AppStorage("menuByStation") private var byStation = true
+    @State private var expandedStations: Set<String> = []
     @State private var addedItemName: String? = nil
 
     private func dietaryFiltered(_ items: [MenuItem]) -> [MenuItem] {
@@ -280,6 +282,12 @@ struct MenuScreen: View {
             }
             .pickerStyle(.segmented)
 
+            Picker("View", selection: $byStation) {
+                Text("Top by station").tag(true)
+                Text("All items").tag(false)
+            }
+            .pickerStyle(.segmented)
+
             Text("\(items.count) menu items").font(.headline)
             if items.isEmpty && !search.isEmpty {
                 ContentUnavailableView.search(text: search)
@@ -287,7 +295,39 @@ struct MenuScreen: View {
                 ContentUnavailableView("No matching items", systemImage: "fork.knife.circle",
                     description: Text("All items are hidden by your dietary restrictions."))
             }
-            if !items.isEmpty {
+            if !items.isEmpty && byStation {
+                ForEach(Station.group(items)) { station in
+                    let expanded = expandedStations.contains(station.id)
+                    VStack(alignment: .leading, spacing: CP.sp8) {
+                        HStack {
+                            Text(station.name).font(.title3.weight(.semibold)).foregroundStyle(CP.navy)
+                            Spacer()
+                            if station.items.count > station.top.count {
+                                Button(expanded ? "Show less" : "See all \(station.items.count)") {
+                                    withAnimation {
+                                        if expanded { expandedStations.remove(station.id) }
+                                        else { expandedStations.insert(station.id) }
+                                    }
+                                }
+                                .font(.subheadline)
+                            }
+                        }
+                        ForEach(expanded ? station.items : station.top) { item in
+                            MenuItemCard(item: item, hall: store.selectedHall) {
+                                guard let macros = item.macros else { return }
+                                daily.logDiningItem(
+                                    name: item.name, macros: macros,
+                                    hallTitle: store.selectedHall.title,
+                                    mealTitle: store.selectedMeal.title
+                                )
+                                addedItemName = item.name
+                            }
+                        }
+                    }
+                    .padding(.top, CP.sp8)
+                }
+            }
+            if !items.isEmpty && !byStation {
                 ForEach(items) { item in
                     MenuItemCard(item: item, hall: store.selectedHall) {
                         guard let macros = item.macros else { return }
@@ -471,5 +511,55 @@ struct AboutView: View {
             .navigationTitle("About")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+    }
+}
+
+
+// MARK: - Stations
+
+/// A Berkeley Dining station (the XML "category", e.g. Lemongrass, Kosher Station, Center Plate).
+struct Station: Identifiable {
+    let id: String
+    let name: String
+    let items: [MenuItem]
+    /// The 3 dishes to show by default: real dishes (not toppings or sauces), highest protein first.
+    let top: [MenuItem]
+
+    /// Build-your-own bars and extras: shown last, still with their top picks.
+    private static let lastKeywords = ["salad bar", "cold food", "bagel", "bread", "spread", "yogurt", "cereal",
+                                       "fruit", "soft serve", "condiment", "dessert", "pastr", "deli"]
+
+    static func normalize(_ raw: String) -> String {
+        var s = raw.replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+        if s.caseInsensitiveCompare("Centerplate") == .orderedSame { s = "Center Plate" }
+        return s.isEmpty ? "Other" : s
+    }
+
+    private static func isDish(_ item: MenuItem) -> Bool {
+        guard let m = item.macros else { return false }
+        let n = item.name.lowercased()
+        let extra = ["sauce", "dressing", "salsa", "chutney", "gravy", "syrup", "topping", "garnish", "seasoning",
+                     "vinaigrette", "aioli", "ketchup", "mustard", "mayo", "relish", "croutons"]
+        return m.caloriesKcal >= 60 && !extra.contains(where: n.contains)
+    }
+
+    static func group(_ items: [MenuItem]) -> [Station] {
+        var buckets: [String: [MenuItem]] = [:]
+        var order: [String] = []
+        for item in items {
+            let name = normalize(item.categories.first ?? "")
+            if buckets[name] == nil { order.append(name) }
+            buckets[name, default: []].append(item)
+        }
+        let stations = order.map { name -> Station in
+            let all = buckets[name]!.sorted { ($0.macros?.proteinG ?? 0) > ($1.macros?.proteinG ?? 0) }
+            let dishes = all.filter(isDish)
+            return Station(id: name, name: name, items: all, top: Array((dishes.isEmpty ? all : dishes).prefix(3)))
+        }
+        func isLast(_ s: Station) -> Bool { lastKeywords.contains { s.name.lowercased().contains($0) } }
+        // Main stations first (in Berkeley's own order), then bars/extras.
+        return stations.filter { !isLast($0) } + stations.filter(isLast)
     }
 }
