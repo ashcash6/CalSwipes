@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Observation
 import os
 
@@ -139,6 +140,22 @@ final class AssistantRouter {
         }
     }
 
+    /// Phone photos are 2-5 MB. Gemini doesn't need more than ~1024 px to recognize food,
+    /// and a smaller upload is much faster on campus Wi-Fi.
+    static func shrink(_ jpeg: Data, maxSide: CGFloat = 1024) -> Data {
+        guard let img = UIImage(data: jpeg) else { return jpeg }
+        let longest = max(img.size.width, img.size.height)
+        guard longest > maxSide else { return jpeg }
+        let scale = maxSide / longest
+        let size = CGSize(width: (img.size.width * scale).rounded(), height: (img.size.height * scale).rounded())
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            img.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return resized.jpegData(compressionQuality: 0.7) ?? jpeg
+    }
+
     func scan(jpeg: Data) async {
         guard hasCloudConsent else {
             pendingCloud = { [weak self] in await self?.scan(jpeg: jpeg) }
@@ -151,7 +168,8 @@ final class AssistantRouter {
         isThinking = true
         defer { isThinking = false }
         do {
-            let r = try await cloud.scan(jpeg: jpeg, hall: hall, meal: meal, entitlement: entitlementHeaders)
+            let small = Self.shrink(jpeg)
+            let r = try await cloud.scan(jpeg: small, hall: hall, meal: meal, entitlement: entitlementHeaders)
             let text = r.matches.isEmpty
                 ? "I couldn't match anything on the tray to today's \(meal.title.lowercased()) menu at \(hall.title)."
                 : "Here's what I see. Check the items and servings, then tap Log meal:"
