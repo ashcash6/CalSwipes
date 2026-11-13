@@ -18,7 +18,7 @@ struct AssistantOverlay: ViewModifier {
                 } label: {
                     Image(systemName: "sparkles")
                         .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(CP.onAccent)
                         .frame(width: 56, height: 56)
                         .background(CP.navy, in: Circle())
                         .shadow(color: .black.opacity(0.2), radius: 8, y: 3)

@@ -193,7 +193,7 @@ private struct MessageBubble: View {
                 Text(message.text)
                     .padding(CP.sp12)
                     .background(CP.navy, in: RoundedRectangle(cornerRadius: CP.r16))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CP.onAccent)
             }
         case .assistant:
             VStack(alignment: .leading, spacing: CP.sp8) {

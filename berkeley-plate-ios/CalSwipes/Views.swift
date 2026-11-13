@@ -158,8 +158,8 @@ struct MenuScreen: View {
             .overlay(alignment: .bottom) {
                 if let name = addedItemName {
                     HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.white)
-                        Text("Added \(name)").foregroundStyle(.white).font(.subheadline.weight(.medium))
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(CP.onAccent)
+                        Text("Added \(name)").foregroundStyle(CP.onAccent).font(.subheadline.weight(.medium))
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

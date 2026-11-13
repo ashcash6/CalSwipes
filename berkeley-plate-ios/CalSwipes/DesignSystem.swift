@@ -26,64 +26,68 @@ private extension UIColor {
     }
 }
 
-// MARK: - CalPlate Design Tokens
+// MARK: - CalSwipes Design Tokens (accessibility-first palette)
+//
+// Every color is (light, dark) and resolves at render time. With Increase Contrast on,
+// textSecondary uses textPrimary and outline uses textSecondary (spec §6).
+// Contrast ratios are enforced by Tests/ContrastTests.swift.
+
+/// Raw palette. Views use the `CP` names below, never these directly.
+enum Palette {
+    struct Pair { let light: String; let dark: String }
+    static let bg            = Pair(light: "F4F5F7", dark: "0E1013")
+    static let surface1      = Pair(light: "FFFFFF", dark: "1A1D22")
+    static let surface2      = Pair(light: "EEF0F3", dark: "252931")
+    static let textPrimary   = Pair(light: "15171A", dark: "ECEDEF")
+    static let textSecondary = Pair(light: "545B66", dark: "A3A9B3")
+    static let accent        = Pair(light: "2B66A6", dark: "7BA6D3")
+    static let onAccent      = Pair(light: "FFFFFF", dark: "0E1013")
+    static let macroProtein  = Pair(light: "0067A3", dark: "56B4E9")
+    static let macroCarbs    = Pair(light: "A35F00", dark: "E69F00")
+    static let macroFat      = Pair(light: "A8457F", dark: "CC79A7")
+    static let track         = Pair(light: "D9DCE1", dark: "3A404B")
+    static let outline       = Pair(light: "7E8591", dark: "6A717D")
+    static let separator     = Pair(light: "E3E5E9", dark: "2C3038")
+    static let destructive   = Pair(light: "A34A00", dark: "F2A65A")
+
+    static func uiColor(_ pair: Pair, highContrast: Pair? = nil) -> UIColor {
+        UIColor { traits in
+            let p = (traits.accessibilityContrast == .high ? highContrast : nil) ?? pair
+            return UIColor(hex: traits.userInterfaceStyle == .dark ? p.dark : p.light)
+        }
+    }
+}
 
 enum CP {
 
-    // MARK: Backgrounds — adaptive light/dark
+    // MARK: Colors (spec §2.1)
 
-    /// Warm off-white in light mode, system grouped dark in dark mode
-    static let bg = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? .systemGroupedBackground
-            : UIColor(hex: "F8F8F5")
-    })
+    static let bg            = Color(uiColor: Palette.uiColor(Palette.bg))
+    static let surface1      = Color(uiColor: Palette.uiColor(Palette.surface1))
+    static let surface2      = Color(uiColor: Palette.uiColor(Palette.surface2))
+    static let textPrimary   = Color(uiColor: Palette.uiColor(Palette.textPrimary))
+    static let textSecondary = Color(uiColor: Palette.uiColor(Palette.textSecondary, highContrast: Palette.textPrimary))
+    static let accent        = Color(uiColor: Palette.uiColor(Palette.accent))
+    static let onAccent      = Color(uiColor: Palette.uiColor(Palette.onAccent))
+    static let macroProtein  = Color(uiColor: Palette.uiColor(Palette.macroProtein))
+    static let macroCarbs    = Color(uiColor: Palette.uiColor(Palette.macroCarbs))
+    static let macroFat      = Color(uiColor: Palette.uiColor(Palette.macroFat))
+    static let track         = Color(uiColor: Palette.uiColor(Palette.track))
+    static let outline       = Color(uiColor: Palette.uiColor(Palette.outline, highContrast: Palette.textSecondary))
+    static let separator     = Color(uiColor: Palette.uiColor(Palette.separator))
+    static let destructive   = Color(uiColor: Palette.uiColor(Palette.destructive))
 
-    /// Elevated card surface
-    static let surface = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? .secondarySystemGroupedBackground
-            : .white
-    })
+    // MARK: Legacy names (existing views). Mapped onto the new palette so the
+    // whole app re-themes without layout changes. Phase 3+ migrates call sites.
 
-    /// Secondary surface (inset cards, option backgrounds)
-    static let surface2 = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? .tertiarySystemGroupedBackground
-            : UIColor(hex: "F1F2F0")
-    })
-
-    /// Divider / border line
-    static let border = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor.separator
-            : UIColor(hex: "DDE1E5")
-    })
-
-    // MARK: Text — fully adaptive so contrast is always guaranteed
-
-    /// Primary text — adapts to light/dark automatically
-    static let text: Color    = .primary
-    /// Secondary / label text
-    static let textSec: Color = .secondary
-
-    // MARK: Brand accent — adaptive so it reads on both light and dark surfaces
-
-    /// Brand navy: deep #12315B in light mode, cornflower-blue in dark mode
-    static let navy = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(hex: "6EA8D8")   // readable on dark backgrounds
-            : UIColor(hex: "12315B")   // rich dark navy on light backgrounds
-    })
-
-    // MARK: Macro colours — fixed accent, light-safe
-
-    /// Protein — muted rose      #D9828B
-    static let protein  = Color(hex: "D9828B")
-    /// Carbohydrates — muted amber  #D99A4A
-    static let carbs    = Color(hex: "D99A4A")
-    /// Fat — muted teal          #6E9B9A
-    static let fat      = Color(hex: "6E9B9A")
+    static var surface: Color { surface1 }
+    static var border: Color  { separator }
+    static var text: Color    { textPrimary }
+    static var textSec: Color { textSecondary }
+    static var navy: Color    { accent }
+    static var protein: Color { macroProtein }
+    static var carbs: Color   { macroCarbs }
+    static var fat: Color     { macroFat }
 
     // MARK: Spacing scale (4-pt grid)
 
@@ -183,7 +187,7 @@ struct CPPrimaryButton: View {
         } label: {
             HStack(spacing: CP.sp8) {
                 if isLoading {
-                    ProgressView().tint(.white).scaleEffect(0.85)
+                    ProgressView().tint(CP.onAccent).scaleEffect(0.85)
                 } else {
                     if let icon { Image(systemName: icon).font(.subheadline.weight(.medium)) }
                     Text(title).fontWeight(.semibold)
@@ -191,8 +195,8 @@ struct CPPrimaryButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 52)
-            .background(isDisabled ? CP.navy.opacity(0.35) : CP.navy)
-            .foregroundStyle(.white)
+            .background(isDisabled ? CP.track : CP.accent)
+            .foregroundStyle(isDisabled ? CP.textSecondary : CP.onAccent)
             .clipShape(RoundedRectangle(cornerRadius: CP.r12))
         }
         .buttonStyle(CPPressStyle())

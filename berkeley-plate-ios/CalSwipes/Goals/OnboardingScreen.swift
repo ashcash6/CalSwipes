@@ -287,7 +287,7 @@ private struct OnboardingStepView<Content: View>: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(PlateStyle.green)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(CP.onAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
                 .buttonStyle(CPPressStyle())

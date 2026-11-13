@@ -200,7 +200,7 @@ struct DashboardScreen: View {
                         Spacer()
                         Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).opacity(0.7)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CP.onAccent)
                     .padding(.horizontal, CP.sp16)
                     .padding(.vertical, CP.sp14)
                     .frame(maxWidth: .infinity)

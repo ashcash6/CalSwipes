@@ -238,7 +238,7 @@ private struct DayDetailPanel: View {
                 if date == daily.todayDate {
                     Text("Today")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(CP.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(PlateStyle.green, in: Capsule())
                 }

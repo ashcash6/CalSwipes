@@ -79,7 +79,7 @@ struct ManualMealEntryScreen: View {
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 16)
                                     .background(canLog ? PlateStyle.green : Color.secondary.opacity(0.25))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(CP.onAccent)
                                     .clipShape(RoundedRectangle(cornerRadius: 18))
                             }
                             .buttonStyle(.plain)
@@ -269,7 +269,7 @@ private struct EntryNumpad: View {
                     Text("Log meal")
                         .font(.headline)
                         .frame(maxWidth: .infinity).frame(height: 52)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(CP.onAccent)
                         .background(canLog ? PlateStyle.green : Color.secondary.opacity(0.25),
                                     in: RoundedRectangle(cornerRadius: 8))
                 }
