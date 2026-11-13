@@ -34,6 +34,23 @@ ALLERGEN_IDS = {"Milk", "Egg", "Fish", "Shellfish", "Tree Nuts",
 DIETARY_IDS = {"Vegan Option", "Vegetarian Option", "Halal", "Kosher"}
 
 
+# All-you-care-to-eat halls sometimes publish a whole batch as one "serving" (e.g. 56 oz of beets).
+# Above this weight we rescale to a 4 oz portion so totals stay realistic. Cafes/markets sell
+# fixed single portions, so they are left alone.
+DINING_HALLS = {Hall.crossroads, Hall.cafe_3, Hall.foothill, Hall.clark_kerr}
+MAX_SERVING_G = 340.0      # 12 oz
+DEFAULT_SERVING_G = 113.4  # 4 oz
+
+
+def rescale_oversized(hall, quantity, unit, weight, macros, warnings):
+    if hall not in DINING_HALLS or weight is None or weight <= MAX_SERVING_G or macros is None:
+        return quantity, unit, weight, macros
+    k = DEFAULT_SERVING_G / weight
+    macros = Macros(**{f: round(getattr(macros, f) * k, 2) for f in ("calories_kcal", "protein_g", "carbs_g", "fat_g")})
+    warnings.append("serving_rescaled_from_%goz" % round(weight / 28.349523125))
+    return 4.0, "oz", DEFAULT_SERVING_G, macros
+
+
 class SourceError(ValueError):
     pass
 
@@ -108,6 +125,7 @@ def parse_xml(raw: bytes, hall: Hall, day: date) -> list[MenuContent]:
                 el.get("id") for el in (dietary_el.findall("dietaryChoice") if dietary_el is not None else [])
                 if el.get("id") and (el.text or "").strip().lower() == "yes"
             )
+            quantity, unit, weight, macros = rescale_oversized(hall, quantity, unit, weight, macros, warnings)
             item = Item(id=rid, name=name, categories=[a.get("category", "").strip()],
                         serving=Serving(quantity=quantity, unit=unit, description=a.get("servingDescription"),
                                         weight_g=weight, weight_basis="source_mass_unit" if factor else "unknown"),
