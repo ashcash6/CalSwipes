@@ -34,16 +34,14 @@ ALLERGEN_IDS = {"Milk", "Egg", "Fish", "Shellfish", "Tree Nuts",
 DIETARY_IDS = {"Vegan Option", "Vegetarian Option", "Halal", "Kosher"}
 
 
-# All-you-care-to-eat halls sometimes publish a whole batch as one "serving" (e.g. 56 oz of beets).
-# Above this weight we rescale to a 4 oz portion so totals stay realistic. Cafes/markets sell
-# fixed single portions, so they are left alone.
-DINING_HALLS = {Hall.crossroads, Hall.cafe_3, Hall.foothill, Hall.clark_kerr}
-MAX_SERVING_G = 340.0      # 12 oz
+# Berkeley sometimes publishes a whole batch as one "serving" (e.g. 56 oz of beets, 400 oz of rice).
+# Any weighed serving over 10 oz is rescaled proportionally to a 4 oz portion and flagged.
+MAX_SERVING_G = 283.5      # 10 oz
 DEFAULT_SERVING_G = 113.4  # 4 oz
 
 
 def rescale_oversized(hall, quantity, unit, weight, macros, warnings):
-    if hall not in DINING_HALLS or weight is None or weight <= MAX_SERVING_G or macros is None:
+    if weight is None or weight <= MAX_SERVING_G or macros is None:
         return quantity, unit, weight, macros
     k = DEFAULT_SERVING_G / weight
     macros = Macros(**{f: round(getattr(macros, f) * k, 2) for f in ("calories_kcal", "protein_g", "carbs_g", "fat_g")})

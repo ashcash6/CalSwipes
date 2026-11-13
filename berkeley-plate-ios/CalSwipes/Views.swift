@@ -418,7 +418,11 @@ struct MenuItemCard: View {
                 Text("Per \(item.serving.label)")
                     .font(.caption2)
                     .foregroundStyle(CP.textSec)
-                if possibleDataError(macros: macros, hall: hall) {
+                if let original = rescaledFromOz {
+                    Label("Berkeley listed \(original) oz per serving, which isn't realistic. Adjusted to 4 oz.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else if possibleDataError(macros: macros, hall: hall) {
                     Label("Values may be scaled up — Berkeley sometimes publishes incorrect serving sizes.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption2)
                         .foregroundStyle(.orange)
@@ -434,6 +438,12 @@ struct MenuItemCard: View {
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 1)
         .accessibilityLabel(item.name)
         .accessibilityValue(accessibilitySummary)
+    }
+
+    /// Set by the server when it shrank an unrealistic published serving (warning "serving_rescaled_from_<N>oz").
+    private var rescaledFromOz: String? {
+        guard let w = item.warnings.first(where: { $0.hasPrefix("serving_rescaled_from_") }) else { return nil }
+        return w.replacingOccurrences(of: "serving_rescaled_from_", with: "").replacingOccurrences(of: "oz", with: "")
     }
 
     private func possibleDataError(macros: Macros, hall: Hall) -> Bool {
@@ -559,7 +569,9 @@ struct Station: Identifiable {
             return Station(id: name, name: name, items: all, top: Array((dishes.isEmpty ? all : dishes).prefix(2)))
         }
         func isLast(_ s: Station) -> Bool { lastKeywords.contains { s.name.lowercased().contains($0) } }
-        // Main stations first (in Berkeley's own order), then bars/extras.
-        return stations.filter { !isLast($0) } + stations.filter(isLast)
+        // Center Plate first, then other main stations (Berkeley's order), then bars/extras.
+        let main = stations.filter { !isLast($0) }
+        let center = main.filter { $0.name == "Center Plate" }
+        return center + main.filter { $0.name != "Center Plate" } + stations.filter(isLast)
     }
 }
