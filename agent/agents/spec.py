@@ -68,3 +68,43 @@ ROOT = dict(
     ),
     sub_agents=[MENU, POLICY, NUTRITION],
 )
+
+
+# Fast lane: simple "what's being served" questions skip the planner and go straight to a
+# menu agent that also knows the phone answer format. One agent instead of planner -> specialist
+# -> planner cuts most of the model round trips.
+PHONE_FORMAT = (
+    "The reply shows on a phone: at most 5 items, best first, one per line as "
+    "'- Item: 520 kcal, 32g protein', no headers, no bold, no duplicate items, skip toppings and "
+    "condiments unless asked, then one short line offering more."
+)
+
+MENU_FAST = dict(
+    name="menu_fast",
+    description="Answers simple menu questions directly.",
+    instruction=MENU["instruction"] + "\n" + PHONE_FORMAT,
+    tools=MENU["tools"],
+)
+
+import re as _re
+
+# Whole-word patterns (so "cross-contact" is slow but "Crossroads" isn't).
+_SLOW = _re.compile(
+    r"\b(allerg\w*|gluten|celiac|cross[- ]contact\w*|contaminat\w*|safe|peanuts?|tree nuts?|nuts?|shellfish|"
+    r"policy|polic\w+|swipes?|meal plans?|flex|refunds?|how do i|app|"
+    r"plan|planning|combos?|combin\w*|goals?|budget|whole day|build|under \d+)\b"
+)
+_MENU = _re.compile(
+    r"\b(menu|serving|served|options?|what'?s|what is|what are|anything|vegan|vegetarian|protein|"
+    r"dessert|breakfast|brunch|lunch|dinner|crossroads|cafe 3|foothill|clark kerr|calories|macros|best|"
+    r"dishes|food)\b"
+)
+
+
+def is_fast_lane(question: str) -> bool:
+    """Conservative: only plain menu lookups. Anything about allergies, policy or planning goes
+    through the full planner."""
+    q = question.lower()
+    if _SLOW.search(q):
+        return False
+    return bool(_MENU.search(q))

@@ -72,6 +72,20 @@ def build_adk_agent(settings: Settings | None = None):
     return make(spec.ROOT, is_root=True)
 
 
+def build_fast_agent(settings: Settings | None = None):
+    """Single menu agent used for the fast lane (spec.is_fast_lane)."""
+    from google.adk import Agent
+
+    settings = settings or Settings.from_env()
+    cfg = spec.MENU_FAST
+    kwargs = dict(name=cfg["name"], model=model_for_agent("menu_agent", settings),
+                  description=cfg["description"], instruction=cfg["instruction"], tools=list(cfg["tools"]))
+    gcc = _fast_config()
+    if gcc is not None:
+        kwargs["generate_content_config"] = gcc
+    return Agent(**kwargs)
+
+
 class ADKAssistant:
     def __init__(self, settings: Settings | None = None):
         from google.adk.runners import Runner
@@ -80,6 +94,8 @@ class ADKAssistant:
         self.settings = settings or Settings.from_env()
         self.sessions = InMemorySessionService()
         self.runner = Runner(agent=build_adk_agent(self.settings), app_name=APP_NAME, session_service=self.sessions)
+        self.fast_runner = Runner(agent=build_fast_agent(self.settings), app_name=APP_NAME,
+                                  session_service=self.sessions)
 
     async def ask(self, question: str, user_id: str = "anon", context: str = "") -> dict:
         from google.genai import types
@@ -89,12 +105,14 @@ class ADKAssistant:
                                                          session_id=uuid.uuid4().hex)
             message = types.Content(role="user", parts=[types.Part(text=(context + question) if context else question)])
             final, agents, last = "", set(), time.perf_counter()
-            async for event in self.runner.run_async(user_id=user_id, session_id=session.id, new_message=message):
+            fast = spec.is_fast_lane(question)
+            runner = self.fast_runner if fast else self.runner
+            async for event in runner.run_async(user_id=user_id, session_id=session.id, new_message=message):
                 now = time.perf_counter()
                 usage = getattr(event, "usage_metadata", None)
                 if usage is not None:
                     # Latency per LLM call ~= time since the previous event (ADK streams one event per model turn).
-                    record_llm_call(event.author, model_for_agent(event.author, self.settings),
+                    record_llm_call(event.author, model_for_agent("menu_agent" if event.author == "menu_fast" else event.author, self.settings),
                                     usage.prompt_token_count or 0,
                                     usage.candidates_token_count or 0, (now - last) * 1000)
                 last = now
@@ -106,7 +124,8 @@ class ADKAssistant:
                         final = text
             answer, actions = apply_guardrails(question, final)
         return {"answer": answer, "citations": sorted(set(CITATION.findall(answer))),
-                "agents_used": sorted(agents - {spec.ROOT["name"], "user"}), "guardrail_actions": actions,
+                "agents_used": sorted({"menu_agent" if a == "menu_fast" else a for a in agents} - {spec.ROOT["name"], "user"}),
+                "lane": "fast" if fast else "planner", "guardrail_actions": actions,
                 "metrics": metrics.summary()}
 
 
