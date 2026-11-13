@@ -326,7 +326,7 @@ struct WeekCircles: View {
 
 struct NewCapsule: View {
     var body: some View {
-        Text("New")
+        Text("1")
             .font(.caption.weight(.bold))
             .foregroundStyle(CP.onAccent)
             .padding(.horizontal, CP.sp8)

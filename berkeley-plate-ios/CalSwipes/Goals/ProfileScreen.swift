@@ -206,7 +206,7 @@ private struct ProfileRow: View {
                     .font(.body)
                 if badge {
                     NewCapsule()
-                        .accessibilityLabel("New: log today's weight")
+                        .accessibilityLabel("1 reminder: log today's weight")
                 }
                 Spacer()
                 if let value {

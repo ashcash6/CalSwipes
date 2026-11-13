@@ -186,7 +186,7 @@ struct MainTabView: View {
             bottomRoom(ProfileScreen(daily: daily, store: store))
                 .tag(Tab.profile.rawValue)
                 .tabItem { Label("Profile", systemImage: "person.circle") }
-                .badge(weightDueToday ? "New" : nil)
+                .badge(weightDueToday ? 1 : 0)
         }
         .tint(CP.accent)
         .preferredColorScheme(preferredColorScheme)
