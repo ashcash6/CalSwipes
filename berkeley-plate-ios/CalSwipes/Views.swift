@@ -522,7 +522,7 @@ struct Station: Identifiable {
     let id: String
     let name: String
     let items: [MenuItem]
-    /// The 3 dishes to show by default: real dishes (not toppings or sauces), highest protein first.
+    /// The 2 dishes to show by default: real dishes (not toppings or sauces), highest protein first.
     let top: [MenuItem]
 
     /// Build-your-own bars and extras: shown last, still with their top picks.
@@ -556,7 +556,7 @@ struct Station: Identifiable {
         let stations = order.map { name -> Station in
             let all = buckets[name]!.sorted { ($0.macros?.proteinG ?? 0) > ($1.macros?.proteinG ?? 0) }
             let dishes = all.filter(isDish)
-            return Station(id: name, name: name, items: all, top: Array((dishes.isEmpty ? all : dishes).prefix(3)))
+            return Station(id: name, name: name, items: all, top: Array((dishes.isEmpty ? all : dishes).prefix(2)))
         }
         func isLast(_ s: Station) -> Bool { lastKeywords.contains { s.name.lowercased().contains($0) } }
         // Main stations first (in Berkeley's own order), then bars/extras.
