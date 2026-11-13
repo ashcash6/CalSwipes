@@ -54,6 +54,10 @@ def import_day(engine, day: date, source: BerkeleySource):
                             finished_at=now, outcome="success", detail=f"{count} unique menu items"))
                     log.info(json.dumps({"event": "import_success", "hall": hall.value, "date": str(day), "items": count}))
                 except Exception as exc:
+                    if getattr(getattr(exc, "response", None), "status_code", None) in (404, 410):
+                        # Hall has no menu that day (cafes close on some days). Not an error.
+                        log.info(json.dumps({"event": "import_no_menu", "hall": hall.value, "date": str(day)}))
+                        continue
                     failures += 1
                     # Do not log connection strings, response bodies or credentials.
                     reason = str(exc)[:250] if isinstance(exc, SourceError) else "source import failed"
