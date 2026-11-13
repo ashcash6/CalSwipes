@@ -317,10 +317,10 @@ struct MenuScreen: View {
 
         if store.isOffline {
             Label("Offline · using your downloaded menu", systemImage: "wifi.slash")
-                .font(.subheadline).foregroundStyle(CP.navy)
+                .font(.subheadline).foregroundStyle(CP.textPrimary)
         }
         if !store.cacheSaved {
-            Text("Menu loaded, but could not be saved for offline use.").font(.caption).foregroundStyle(.orange)
+            Label("Menu loaded, but couldn't be saved for offline use.", systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(CP.textPrimary)
         }
         Text("Updated \(menu.fetchedAt.formatted(date: .omitted, time: .shortened)) · per published serving")
             .font(.footnote).foregroundStyle(CP.textSecondary)

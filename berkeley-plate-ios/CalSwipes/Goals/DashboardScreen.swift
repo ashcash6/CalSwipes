@@ -498,10 +498,10 @@ private struct StreakBadge: View {
             Text("🔥")
             Text("\(streak)")
                 .font(.system(.title3, design: .rounded, weight: .bold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(CP.textPrimary)
         }
         .padding(.horizontal, CP.sp12).padding(.vertical, CP.sp8)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: CP.r12))
+        .background(CP.surface2, in: RoundedRectangle(cornerRadius: CP.r12))
         .accessibilityLabel("\(streak)-day streak")
     }
 }
@@ -947,7 +947,7 @@ struct MakeMealSheet: View {
 
     private func compRow(_ label: String, actual: Double, target: Double, unit: String) -> some View {
         let pct = target > 0 ? actual / target : 1.0
-        let color: Color = pct > 1.15 ? .red : pct < 0.70 ? .orange : CP.navy
+        let color: Color = CP.textPrimary   // status shown in words, not red/green
         return HStack {
             Text(label).font(.caption).foregroundStyle(CP.textSec).frame(width: 56, alignment: .leading)
             Text("\(Int(actual))\(unit)").font(.caption.weight(.semibold)).foregroundStyle(color)
@@ -1121,9 +1121,9 @@ private struct SwapPickerSheet: View {
             let isUp = rounded > 0
             Text((isUp ? "+" : "") + "\(rounded)\(unit)")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(isUp ? Color.orange : CP.navy)
+                .foregroundStyle(CP.textPrimary)
                 .padding(.horizontal, 6).padding(.vertical, 2)
-                .background((isUp ? Color.orange : CP.navy).opacity(0.10), in: Capsule())
+                .background(CP.surface2, in: Capsule())
         }
     }
 }

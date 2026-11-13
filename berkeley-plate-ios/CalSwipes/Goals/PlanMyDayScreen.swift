@@ -312,8 +312,8 @@ private struct PlanContentView: View {
             if ratio < 0.9 || ratio > 1.1 {
                 let diff = total.caloriesKcal - target
                 HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(CP.textPrimary)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("\(Int(abs(diff))) kcal \(diff > 0 ? "over" : "under") your dining-hall target")
                             .font(.caption.weight(.semibold))
