@@ -11,6 +11,10 @@ struct DashboardScreen: View {
     @State private var showManualEntry = false
     @State private var editingMeal: LoggedMeal?
     @State private var showMakeMeal = false
+    @State private var showTrayCamera = false
+    @State private var showTrayChat = false
+    @Environment(AssistantRouter.self) private var assistant: AssistantRouter?
+    @Environment(SubscriptionStore.self) private var subscription: SubscriptionStore?
 
     var body: some View {
         NavigationStack {
@@ -60,6 +64,21 @@ struct DashboardScreen: View {
         }
         .sheet(isPresented: $showMakeMeal) {
             MakeMealSheet(store: store, daily: daily)
+        }
+        .fullScreenCover(isPresented: $showTrayCamera) {
+            TrayCameraPicker { jpeg in
+                guard let assistant else { return }
+                assistant.open(with: .none)
+                showTrayChat = true
+                Task { await assistant.scan(jpeg: jpeg) }
+            }
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showTrayChat) {
+            if let assistant, let subscription {
+                AssistantChatView(router: assistant, subscription: subscription)
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -170,6 +189,9 @@ struct DashboardScreen: View {
 
     private var logActionsCard: some View {
         HStack(spacing: CP.sp12) {
+            if assistant != nil {
+                logButton(title: "Scan meal", icon: "camera.viewfinder") { showTrayCamera = true }
+            }
             logButton(title: "Nutrition label", icon: "barcode.viewfinder") { showLabelScan = true }
             logButton(title: "Log manually",    icon: "square.and.pencil")  { showManualEntry = true }
         }
@@ -1132,3 +1154,37 @@ private struct EditMealSheet: View {
     }
 }
 
+
+
+// MARK: - Tray camera (Scan meal)
+
+/// Takes one photo with the camera (photo library in the Simulator) and returns it as JPEG.
+struct TrayCameraPicker: UIViewControllerRepresentable {
+    let onImage: (Data) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: TrayCameraPicker
+        init(_ parent: TrayCameraPicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            let jpeg = (info[.originalImage] as? UIImage)?.jpegData(compressionQuality: 0.7)
+            parent.dismiss()
+            if let jpeg { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.parent.onImage(jpeg) } }
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.dismiss() }
+    }
+}
