@@ -406,3 +406,37 @@ struct TodayHeroCard: View {
         .background(CP.surface1, in: RoundedRectangle(cornerRadius: CP.r16))
     }
 }
+
+
+// MARK: - Tap outside a text field closes the keyboard (app-wide)
+
+/// Adds one window-level tap recognizer that ends editing when you tap anything that isn't a
+/// text field. It doesn't cancel touches, so buttons, rows and lists keep working normally.
+enum TapOutsideToDismissKeyboard {
+    private final class Delegate: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            var v: UIView? = touch.view
+            while let view = v {
+                if view is UITextField || view is UITextView { return false }
+                v = view.superview
+            }
+            return true
+        }
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+    private static let delegate = Delegate()
+    private static var installed = false
+
+    static func install() {
+        guard !installed,
+              let window = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).flatMap(\.windows).first(where: \.isKeyWindow)
+        else { return }
+        let tap = UITapGestureRecognizer(target: window, action: #selector(UIView.endEditing(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = delegate
+        window.addGestureRecognizer(tap)
+        installed = true
+    }
+}

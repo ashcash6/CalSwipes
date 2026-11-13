@@ -154,6 +154,7 @@ struct MainTabView: View {
     @State private var coverRoute: LogRoute?      // tray camera, label scan
     @State private var sheetRoute: LogRoute?      // manual entry, AI chat
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @State private var keyboardUp = false
 
     private var preferredColorScheme: ColorScheme? {
         switch appearancePref {
@@ -201,14 +202,23 @@ struct MainTabView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            VStack(spacing: CP.sp8) {
-                if !seenLogHint {
-                    LogHintBubble { seenLogHint = true }
+            if !keyboardUp {   // no floating Log button while typing
+                VStack(spacing: CP.sp8) {
+                    if !seenLogHint {
+                        LogHintBubble { seenLogHint = true }
+                    }
+                    RaisedLogButton { openLog() }
                 }
-                RaisedLogButton { openLog() }
+                .padding(.bottom, CP.sp24)   // raised about 20pt above the bar's icon row
             }
-            .padding(.bottom, CP.sp24)   // raised about 20pt above the bar's icon row
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardUp = false
+        }
+        .onAppear { TapOutsideToDismissKeyboard.install() }
         .environment(assistant)
         .environment(subscription)
         .sheet(isPresented: $showLogSheet, onDismiss: {
