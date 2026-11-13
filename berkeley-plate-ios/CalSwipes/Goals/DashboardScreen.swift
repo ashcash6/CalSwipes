@@ -188,28 +188,48 @@ struct DashboardScreen: View {
     }
 
     private var logActionsCard: some View {
-        HStack(spacing: CP.sp12) {
+        VStack(spacing: CP.sp8) {
             if assistant != nil {
-                logButton(title: "Scan meal", icon: "camera.viewfinder") { showTrayCamera = true }
+                Button { showTrayCamera = true } label: {
+                    HStack(spacing: CP.sp12) {
+                        Image(systemName: "camera.viewfinder").font(.title2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Scan my meal").font(.headline)
+                            Text("Snap your tray and log it in seconds").font(.caption).opacity(0.85)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).opacity(0.7)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, CP.sp16)
+                    .padding(.vertical, CP.sp14)
+                    .frame(maxWidth: .infinity)
+                    .background(CP.navy, in: RoundedRectangle(cornerRadius: CP.r16))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(CPPressStyle())
             }
-            logButton(title: "Nutrition label", icon: "barcode.viewfinder") { showLabelScan = true }
-            logButton(title: "Log manually",    icon: "square.and.pencil")  { showManualEntry = true }
+            HStack(spacing: CP.sp8) {
+                logButton(title: "Scan label", icon: "barcode.viewfinder") { showLabelScan = true }
+                logButton(title: "Log manually", icon: "square.and.pencil") { showManualEntry = true }
+            }
         }
     }
 
     private func logButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: CP.sp8) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.title3)
+                    .font(.subheadline)
                     .foregroundStyle(CP.navy)
                 Text(title)
-                    .font(.subheadline.weight(.medium))
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(CP.text)
-                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, CP.sp16)
+            .padding(.vertical, CP.sp12)
             .contentShape(Rectangle())
         }
         .buttonStyle(CPPressStyle())
