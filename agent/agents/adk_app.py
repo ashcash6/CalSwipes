@@ -34,6 +34,24 @@ from observability.telemetry import record_llm_call, request_scope, setup_loggin
 APP_NAME = "calswipes_agent"
 
 
+def _fast_config():
+    """Turn model 'thinking' down: these are lookups, not puzzles, and thinking was most of the latency.
+    THINKING_LEVEL env: low (default) | off | default."""
+    import os
+    level = os.environ.get("THINKING_LEVEL", "low").lower()
+    if level == "default":
+        return None
+    from google.genai import types
+    try:
+        tc = types.ThinkingConfig(thinking_level="MINIMAL" if level == "off" else "LOW")
+    except Exception:
+        try:
+            tc = types.ThinkingConfig(thinking_budget=0 if level == "off" else 256)
+        except Exception:
+            return None
+    return types.GenerateContentConfig(thinking_config=tc)
+
+
 def build_adk_agent(settings: Settings | None = None):
     from google.adk import Agent
 
@@ -42,6 +60,9 @@ def build_adk_agent(settings: Settings | None = None):
     def make(cfg, is_root=False):
         kwargs = dict(name=cfg["name"], model=model_for_agent(cfg["name"], settings), description=cfg["description"],
                       instruction=cfg["instruction"], tools=list(cfg.get("tools", [])))
+        gcc = _fast_config()
+        if gcc is not None:
+            kwargs["generate_content_config"] = gcc
         if cfg.get("sub_agents"):
             kwargs["sub_agents"] = [make(s) for s in cfg["sub_agents"]]
         if not is_root:

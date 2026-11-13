@@ -24,11 +24,18 @@ struct AssistantChatView: View {
                             if router.isThinking {
                                 HStack(spacing: CP.sp8) {
                                     ProgressView()
-                                    Text("Thinking…").font(.subheadline).foregroundStyle(CP.textSec)
+                                    Text(router.thinkingLabel).font(.subheadline).foregroundStyle(CP.textSec)
                                 }
+                                .padding(CP.sp12)
+                                .background(CP.textSec.opacity(0.08), in: RoundedRectangle(cornerRadius: CP.r16))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id("thinking")
                             }
                         }
                         .padding(CP.sp16)
+                    }
+                    .onChange(of: router.isThinking) { _, thinking in
+                        if thinking { withAnimation { proxy.scrollTo("thinking", anchor: .bottom) } }
                     }
                     .onChange(of: router.messages.count) { _, _ in
                         if let last = router.messages.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }

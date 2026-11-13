@@ -19,6 +19,7 @@ final class AssistantRouter {
 
     private(set) var messages: [ChatMessage] = []
     private(set) var isThinking = false
+    private(set) var thinkingLabel = "Thinking…"
     /// Set when the server says the user hit their daily cap; the chat view shows the CalSwipes+ paywall.
     var showPaywall = false
     var context: AssistantContext = .none
@@ -90,6 +91,7 @@ final class AssistantRouter {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isThinking else { return }
         messages.append(ChatMessage(role: .user, text: text))
+        thinkingLabel = "Thinking…"
         isThinking = true
         defer { isThinking = false }
 
@@ -106,9 +108,11 @@ final class AssistantRouter {
             if let answer = await OnDeviceAssistant.answer(text, context: context, snap: snap) {
                 messages.append(ChatMessage(role: .assistant, text: answer, tier: .onDevice))
             } else {
+                thinkingLabel = "Checking today's menus…"
                 await askCloud(text)   // model declined (NEEDS_CLOUD) or failed
             }
         case .cloud:
+            thinkingLabel = "Checking today's menus…"
             await askCloud(text)
         }
     }
