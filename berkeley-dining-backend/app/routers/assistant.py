@@ -115,7 +115,7 @@ def make_router(gate: AssistantGate, forwarder) -> APIRouter:
         device, ip, premium = who
         day = body.date or berkeley_today().isoformat()
         hit = gate.cached(body.question, body.hall, body.meal, day)
-        if hit is not None:
+        if hit is not None and _cacheable(hit.get("answer", "")):
             return JSONResponse({**hit, "cached": True}, headers={"Cache-Control": "no-store"})
         decision = gate.reserve(ASK, device, ip, premium)
         if not decision.allowed:
