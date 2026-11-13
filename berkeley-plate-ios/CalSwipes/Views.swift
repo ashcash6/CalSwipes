@@ -86,7 +86,6 @@ struct MenuScreen: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: CP.sp12) {
-                    ProgressStrip(daily: daily, onTap: onShowToday)
                     contextRow
                     if simulator {
                         Label("Simulator preview · camera support is unverified", systemImage: "desktopcomputer")

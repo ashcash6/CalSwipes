@@ -139,10 +139,10 @@ struct MainTabView: View {
     var planStore: PlanStore
     let simulator: Bool
 
-    // Tabs: 0 Menu · 1 Today · 2 Log (intercepted, opens a sheet) · 3 Plan · 4 Profile
-    private enum Tab: Int { case menu = 0, today = 1, log = 2, plan = 3, profile = 4 }
-    @State private var selectedTab = Tab.menu.rawValue
-    @State private var lastRealTab = Tab.menu.rawValue
+    // Tabs: 0 Today · 1 Menu · 2 Log (intercepted, opens a sheet) · 3 Plan · 4 Profile
+    private enum Tab: Int { case today = 0, menu = 1, log = 2, plan = 3, profile = 4 }
+    @State private var selectedTab = Tab.today.rawValue
+    @State private var lastRealTab = Tab.today.rawValue
     @AppStorage("appearancePref") private var appearancePref = "system"
     @AppStorage("seenLogHint.v1") private var seenLogHint = false
     @State private var subscription = SubscriptionStore()
@@ -170,13 +170,12 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            bottomRoom(MenuScreen(store: store, daily: daily, simulator: simulator,
-                                  onShowToday: { selectedTab = Tab.today.rawValue }))
-                .tag(Tab.menu.rawValue)
-                .tabItem { Label("Menu", systemImage: "fork.knife") }
             bottomRoom(DashboardScreen(store: store, daily: daily))
                 .tag(Tab.today.rawValue)
                 .tabItem { Label("Today", systemImage: "sun.max") }
+            bottomRoom(MenuScreen(store: store, daily: daily, simulator: simulator))
+                .tag(Tab.menu.rawValue)
+                .tabItem { Label("Menu", systemImage: "fork.knife") }
             Color.clear
                 .tag(Tab.log.rawValue)
                 .tabItem { Text("Log") }
