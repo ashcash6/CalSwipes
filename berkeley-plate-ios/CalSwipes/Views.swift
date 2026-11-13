@@ -185,13 +185,17 @@ struct MenuScreen: View {
         return out.string(from: d)
     }
 
-    /// One compact line: Crossroads ▾ · Dinner ▾ · 5–9 PM (spec §5.1)
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Hall and meal side by side as two equal tiles (stacked only at accessibility text sizes).
     private var contextRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: CP.sp8) { hallPicker; Text("·").foregroundStyle(CP.textSecondary); mealPicker; hoursText }
-            VStack(alignment: .leading, spacing: CP.sp4) { hallPicker; mealPicker; hoursText }
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: CP.sp8))
+            : AnyLayout(HStackLayout(spacing: CP.sp8))
+        return layout {
+            hallPicker
+            mealPicker
         }
-        .font(.subheadline)
     }
 
     private var hallPicker: some View {
@@ -205,7 +209,7 @@ struct MenuScreen: View {
                 }
             }
         } label: {
-            pickerLabel(store.selectedHall.title)
+            pickerTile(caption: "Dining hall", value: store.selectedHall.title)
         }
         .accessibilityLabel("Dining hall, \(store.selectedHall.title)")
     }
@@ -222,24 +226,38 @@ struct MenuScreen: View {
                 ForEach(options) { meal in Text(meal.title).tag(meal) }
             }
         } label: {
-            pickerLabel(store.selectedMeal.title)
+            pickerTile(caption: store.mealValidated ? "Meal · \(store.selectedMeal.typicalHours)" : "Meal",
+                       value: store.selectedMeal.title)
         }
         .accessibilityLabel("Meal, \(store.selectedMeal.title)")
     }
 
-    @ViewBuilder private var hoursText: some View {
-        if store.mealValidated {
-            Text(store.selectedMeal.typicalHours).foregroundStyle(CP.textSecondary)
-        }
-    }
-
-    private func pickerLabel(_ title: String) -> some View {
-        HStack(spacing: CP.sp4) {
-            Text(title).font(.headline).foregroundStyle(CP.textPrimary)
-            Image(systemName: "chevron.down").font(.footnote.weight(.semibold)).foregroundStyle(CP.accent)
+    /// Tile: small caption on top, value below, native up/down picker indicator on the right.
+    private func pickerTile(caption: String, value: String) -> some View {
+        HStack(spacing: CP.sp8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(caption)
+                    .font(.footnote)
+                    .foregroundStyle(CP.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text(value)
+                    .font(.headline)
+                    .foregroundStyle(CP.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(CP.textSecondary)
                 .accessibilityHidden(true)
         }
-        .frame(minHeight: 44)
+        .padding(.horizontal, CP.sp12)
+        .padding(.vertical, CP.sp8)
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .background(CP.surface1, in: RoundedRectangle(cornerRadius: CP.r12))
+        .overlay(RoundedRectangle(cornerRadius: CP.r12).stroke(CP.separator))
         .contentShape(Rectangle())
     }
 
