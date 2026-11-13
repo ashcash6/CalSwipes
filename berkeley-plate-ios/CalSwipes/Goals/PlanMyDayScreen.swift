@@ -204,11 +204,18 @@ private struct PlanContentView: View {
                             .foregroundStyle(CP.textSec)
                         Spacer()
                         HStack(spacing: CP.sp14) {
-                            macroChip(Int(total.proteinG), label: "pro", color: CP.protein)
-                            macroChip(Int(total.carbsG),   label: "carbs", color: CP.carbs)
-                            macroChip(Int(total.fatG),     label: "fat", color: CP.fat)
+                            macroChip(Int(total.proteinG), label: "g P", color: CP.protein)
+                            macroChip(Int(total.carbsG),   label: "g C", color: CP.carbs)
+                            macroChip(Int(total.fatG),     label: "g F", color: CP.fat)
                         }
                     }
+                    let diff = total.caloriesKcal - plan.goalCalories
+                    Text("\(Fmt.int(total.caloriesKcal)) projected · "
+                         + (diff >= 0 ? "\(Fmt.int(diff)) over" : "\(Fmt.int(-diff)) under")
+                         + " your \(Fmt.int(plan.goalCalories)) goal")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(CP.textPrimary)
+                        .monospacedDigit()
                     if snackCal > 0 {
                         Text("Includes \(Int(snackCal)) kcal from recurring snacks")
                             .font(.caption2).foregroundStyle(CP.textSec)
@@ -586,23 +593,31 @@ private struct MealComboCard: View {
                 let totals = combo.totalMacros
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(Int(totals.caloriesKcal)) kcal")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(CP.navy)
-                    Text("\(Int(totals.proteinG))g pro · \(Int(totals.carbsG))g carbs · \(Int(totals.fatG))g fat")
-                        .font(.caption2).foregroundStyle(CP.textSec)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(CP.textPrimary)
+                    Text("P \(Int(totals.proteinG))g · C \(Int(totals.carbsG))g · F \(Int(totals.fatG))g")
+                        .font(.footnote).foregroundStyle(CP.textSecondary)
                 }
                 Spacer()
                 if !planIsConfirmed {
                     Button { onAddItem() } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.title3)
-                            .foregroundStyle(CP.navy.opacity(0.7))
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(CP.accent)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    Button("Accept", action: onAccept)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .tint(CP.navy)
+                    .accessibilityLabel("Add an item")
+                    Button(action: onAccept) {
+                        Text("Accept")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(CP.onAccent)
+                            .padding(.horizontal, CP.sp16)
+                            .frame(minHeight: 44)
+                            .background(CP.accent, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, CP.sp14)
@@ -618,86 +633,142 @@ private struct ComponentRow: View {
     let showActions: Bool
     let onSwap: () -> Void
     let onRemove: () -> Void
-    /// When provided, shows a −/+ stepper. nil = read-only (accepted state).
+    /// When provided, servings can be adjusted. nil = read-only (accepted state).
     var onAdjustServing: ((Double) -> Void)? = nil
+    @State private var showEditor = false
+
+    private var summary: String {
+        var parts = [servingCountText(component.servingCount)]
+        if let m = component.macros {
+            parts.append("\(Int(m.caloriesKcal)) kcal")
+            parts.append("\(Int(m.proteinG))g P")
+        }
+        return parts.joined(separator: " · ")
+    }
 
     var body: some View {
-        let row = HStack(spacing: 6) {
-            Image(systemName: component.role.systemImage)
-                .font(.caption)
-                .foregroundStyle(CP.roleColor(component.role))
-                .frame(width: 16)
-
+        let row = HStack(spacing: CP.sp8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(component.itemName)
-                    .font(.subheadline)
-                    .lineLimit(1)
-                if let phys = physicalLabel(component.servingCount, component.baseServing) {
-                    Text("\(servingCountText(component.servingCount)) · \(phys)")
-                        .font(.caption2).foregroundStyle(.secondary)
-                } else {
-                    Text(servingCountText(component.servingCount))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                if let macros = component.macros {
-                    Text("\(Int(macros.caloriesKcal)) kcal · \(Int(macros.proteinG))g pro")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
+                    .font(.body)
+                    .foregroundStyle(CP.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(summary)
+                    .font(.footnote).foregroundStyle(CP.textSecondary)
+                    .monospacedDigit()
             }
-
-            Spacer(minLength: 4)
-
-            // Serving stepper — shown whenever the callback is provided (pending OR accepted)
-            if let onAdjust = onAdjustServing {
-                HStack(spacing: 1) {
-                    Button { onAdjust(-0.25) } label: {
-                        Image(systemName: "minus.circle")
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(component.servingCount <= 0.25)
-
-                    Text(servingLabel(component.servingCount))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(CP.navy)
-                        .frame(minWidth: 30, alignment: .center)
-
-                    Button { onAdjust(0.25) } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else if component.servingCount > 1 {
-                // Read-only badge when no stepper (confirmed plan)
-                Text(servingLabel(component.servingCount))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(CP.navy)
-                    .padding(.horizontal, 5).padding(.vertical, 2)
-                    .background(CP.navy.opacity(0.08), in: Capsule())
-            }
-
-            if showActions {
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button { onRemove() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.callout)
-                        .foregroundStyle(Color.secondary.opacity(0.35))
-                }
-                .buttonStyle(.plain)
+            Spacer(minLength: CP.sp4)
+            if showActions || onAdjustServing != nil {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(CP.textSecondary)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, CP.sp12)
+        .frame(minHeight: 44)
+        .padding(.vertical, CP.sp4)
+        .contentShape(Rectangle())
 
-        if showActions {
-            Button { onSwap() } label: {
-                row.contentShape(Rectangle())
+        Group {
+            if showActions || onAdjustServing != nil {
+                Button { showEditor = true } label: { row }
+                    .buttonStyle(CPRowStyle())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityHint("Opens servings, swap and remove")
+                    .accessibilityActions {
+                        if let onAdjust = onAdjustServing {
+                            Button("Increase servings") { onAdjust(0.25) }
+                            if component.servingCount > 0.25 {
+                                Button("Decrease servings") { onAdjust(-0.25) }
+                            }
+                        }
+                        if showActions {
+                            Button("Swap") { onSwap() }
+                            Button("Remove") { onRemove() }
+                        }
+                    }
+            } else {
+                row.accessibilityElement(children: .combine)
             }
-            .buttonStyle(CPRowStyle())
-        } else {
-            row
+        }
+        .sheet(isPresented: $showEditor) {
+            ComponentEditor(component: component, showActions: showActions,
+                            onSwap: { showEditor = false; onSwap() },
+                            onRemove: { showEditor = false; onRemove() },
+                            onAdjustServing: onAdjustServing)
+                .presentationDetents([.height(320), .medium])
+        }
+    }
+}
+
+/// Small sheet: servings stepper (44pt), Swap, Remove (with confirmation).
+private struct ComponentEditor: View {
+    let component: MealComponent
+    let showActions: Bool
+    let onSwap: () -> Void
+    let onRemove: () -> Void
+    var onAdjustServing: ((Double) -> Void)?
+    @State private var confirmRemove = false
+    @State private var servings: Double
+
+    init(component: MealComponent, showActions: Bool, onSwap: @escaping () -> Void,
+         onRemove: @escaping () -> Void, onAdjustServing: ((Double) -> Void)?) {
+        self.component = component
+        self.showActions = showActions
+        self.onSwap = onSwap
+        self.onRemove = onRemove
+        self.onAdjustServing = onAdjustServing
+        _servings = State(initialValue: component.servingCount)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CP.sp16) {
+            Text(component.itemName)
+                .font(.headline)
+                .foregroundStyle(CP.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let onAdjust = onAdjustServing {
+                HStack {
+                    Text("Servings").font(.body).foregroundStyle(CP.textPrimary)
+                    Spacer()
+                    Button { servings -= 0.25; onAdjust(-0.25) } label: {
+                        Image(systemName: "minus").frame(width: 44, height: 44)
+                    }
+                    .disabled(servings <= 0.25)
+                    .accessibilityLabel("Decrease servings")
+                    Text(servingCountText(servings))
+                        .font(.body.weight(.semibold)).monospacedDigit()
+                        .frame(minWidth: 96)
+                    Button { servings += 0.25; onAdjust(0.25) } label: {
+                        Image(systemName: "plus").frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Increase servings")
+                }
+                .foregroundStyle(CP.accent)
+            }
+            if showActions {
+                HStack(spacing: CP.sp12) {
+                    Button(action: onSwap) {
+                        Label("Swap", systemImage: "arrow.left.arrow.right")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(CP.accent)
+                    Button(role: .destructive) { confirmRemove = true } label: {
+                        Label("Remove", systemImage: "trash")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(CP.destructive)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(CP.sp20)
+        .confirmationDialog("Remove \(component.itemName)?", isPresented: $confirmRemove, titleVisibility: .visible) {
+            Button("Remove", role: .destructive, action: onRemove)
+            Button("Cancel", role: .cancel) {}
         }
     }
 }

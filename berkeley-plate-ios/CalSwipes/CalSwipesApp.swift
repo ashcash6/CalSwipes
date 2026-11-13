@@ -138,10 +138,22 @@ struct MainTabView: View {
     var daily: DailyStore
     var planStore: PlanStore
     let simulator: Bool
-    @State private var selectedTab = 0
+
+    // Tabs: 0 Menu · 1 Today · 2 Log (intercepted, opens a sheet) · 3 Plan · 4 Profile
+    private enum Tab: Int { case menu = 0, today = 1, log = 2, plan = 3, profile = 4 }
+    @State private var selectedTab = Tab.menu.rawValue
+    @State private var lastRealTab = Tab.menu.rawValue
     @AppStorage("appearancePref") private var appearancePref = "system"
+    @AppStorage("seenLogHint.v1") private var seenLogHint = false
     @State private var subscription = SubscriptionStore()
     @State private var assistant: AssistantRouter?
+
+    // Log flow
+    @State private var showLogSheet = false
+    @State private var pendingRoute: LogRoute?
+    @State private var coverRoute: LogRoute?      // tray camera, label scan
+    @State private var sheetRoute: LogRoute?      // manual entry, AI chat
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var preferredColorScheme: ColorScheme? {
         switch appearancePref {
@@ -151,27 +163,94 @@ struct MainTabView: View {
         }
     }
 
+    /// Room for the raised Log button so the last row of every list scrolls fully above it.
+    private func bottomRoom<V: View>(_ v: V) -> some View {
+        v.safeAreaInset(edge: .bottom) { Color.clear.frame(height: CP.sp24) }
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardScreen(store: store, daily: daily)
-                .tag(0)
-                .tabItem { Label("Today", systemImage: "sun.max.fill") }
-            MenuScreen(store: store, daily: daily, simulator: simulator)
-                .tag(1)
+            bottomRoom(MenuScreen(store: store, daily: daily, simulator: simulator,
+                                  onShowToday: { selectedTab = Tab.today.rawValue }))
+                .tag(Tab.menu.rawValue)
                 .tabItem { Label("Menu", systemImage: "fork.knife") }
-            PlanMyDayScreen(planStore: planStore, store: store, daily: daily)
-                .tag(2)
-                .tabItem { Label("Plan", systemImage: "calendar.badge.plus") }
-            ProfileScreen(daily: daily, store: store)
-                .tag(3)
+            bottomRoom(DashboardScreen(store: store, daily: daily))
+                .tag(Tab.today.rawValue)
+                .tabItem { Label("Today", systemImage: "sun.max") }
+            Color.clear
+                .tag(Tab.log.rawValue)
+                .tabItem { Text("Log") }
+                .accessibilityLabel("Log a meal")
+            bottomRoom(PlanMyDayScreen(planStore: planStore, store: store, daily: daily))
+                .tag(Tab.plan.rawValue)
+                .tabItem { Label("Plan", systemImage: "calendar") }
+            bottomRoom(ProfileScreen(daily: daily, store: store))
+                .tag(Tab.profile.rawValue)
                 .tabItem { Label("Profile", systemImage: "person.circle") }
-                .badge(daily.weightEntries.contains { $0.date == BerkeleyClock.serviceDate() } ? 0 : 1)
+                .badge(weightDueToday ? "New" : nil)
         }
-        .tint(CP.navy)
+        .tint(CP.accent)
         .preferredColorScheme(preferredColorScheme)
-        .toolbarBackground(.regularMaterial, for: .tabBar)
+        .toolbarBackground(reduceTransparency ? AnyShapeStyle(CP.surface1) : AnyShapeStyle(.regularMaterial), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
-        .modifier(AssistantMount(router: assistant, subscription: subscription))
+        .onChange(of: selectedTab) { old, new in
+            if new == Tab.log.rawValue {
+                selectedTab = lastRealTab        // the Log tab never stays selected
+                openLog()
+            } else {
+                lastRealTab = new
+            }
+        }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: CP.sp8) {
+                if !seenLogHint {
+                    LogHintBubble { seenLogHint = true }
+                }
+                RaisedLogButton { openLog() }
+            }
+            .padding(.bottom, CP.sp24)   // raised about 20pt above the bar's icon row
+        }
+        .environment(assistant)
+        .environment(subscription)
+        .sheet(isPresented: $showLogSheet, onDismiss: {
+            guard let route = pendingRoute else { return }
+            pendingRoute = nil
+            switch route {
+            case .tray, .label: coverRoute = route
+            case .manual, .ai:  sheetRoute = route
+            }
+        }) {
+            LogSheet(assistantAvailable: assistant != nil) { pendingRoute = $0 }
+                .presentationDetents([.medium])
+        }
+        .fullScreenCover(item: $coverRoute) { route in
+            switch route {
+            case .tray:
+                TrayCameraPicker { jpeg in
+                    guard let assistant else { return }
+                    assistant.open(with: .none)
+                    sheetRoute = .ai
+                    Task { await assistant.scan(jpeg: jpeg) }
+                }
+                .ignoresSafeArea()
+            default:
+                NutritionLabelScanScreen { name, macros in
+                    daily.logManualMeal(name: name, macros: macros)
+                    Haptics.logged()
+                }
+            }
+        }
+        .sheet(item: $sheetRoute) { route in
+            switch route {
+            case .manual:
+                ManualMealEntryScreen(store: daily)
+            default:
+                if let assistant {
+                    AssistantChatView(router: assistant, subscription: subscription)
+                        .presentationDetents([.medium, .large])
+                }
+            }
+        }
         .task {
             if assistant == nil {
                 assistant = AssistantRouter(store: store, daily: daily, subscription: subscription)
@@ -179,18 +258,15 @@ struct MainTabView: View {
             await subscription.load()
         }
     }
-}
 
-/// Adds the floating assistant button once the router exists (created in MainTabView.task).
-private struct AssistantMount: ViewModifier {
-    let router: AssistantRouter?
-    let subscription: SubscriptionStore
-    func body(content: Content) -> some View {
-        if let router {
-            content.assistantOverlay(router: router, subscription: subscription)
-        } else {
-            content
-        }
+    private var weightDueToday: Bool {
+        !daily.weightEntries.contains { $0.date == BerkeleyClock.serviceDate() }
+    }
+
+    private func openLog() {
+        seenLogHint = true
+        assistant?.open(with: .none)
+        showLogSheet = true
     }
 }
 

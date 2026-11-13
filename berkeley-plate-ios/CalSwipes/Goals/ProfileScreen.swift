@@ -197,20 +197,17 @@ private struct ProfileRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: CP.sp12) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: icon)
-                        .font(.body)
-                        .foregroundStyle(CP.navy)
-                        .frame(width: 28)
-                    if badge {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 4, y: -3)
-                    }
-                }
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundStyle(CP.textSecondary)
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
                 Text(label)
                     .font(.body)
+                if badge {
+                    NewCapsule()
+                        .accessibilityLabel("New: log today's weight")
+                }
                 Spacer()
                 if let value {
                     Text(value)

@@ -20,13 +20,15 @@ struct MenuScreen: View {
     var store: AppStore
     var daily: DailyStore
     let simulator: Bool
+    var onShowToday: () -> Void = {}
     @State private var aboutPresented = false
+    @State private var lastLogged: (id: UUID, name: String)? = nil
+    @State private var snackbarTask: Task<Void, Never>? = nil
     @State private var search = ""
     @State private var showMakeMeal = false
     @State private var macroFilter: MacroFilter = .all
     @AppStorage("menuByStation") private var byStation = true
     @State private var expandedStations: Set<String> = []
-    @State private var addedItemName: String? = nil
 
     private func dietaryFiltered(_ items: [MenuItem]) -> [MenuItem] {
         guard let goal = daily.goal,
@@ -83,17 +85,9 @@ struct MenuScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        CPSectionLabel(text: "Today at Berkeley")
-                        Text("Make it your plate.")
-                            .font(.system(.largeTitle, design: .serif, weight: .semibold))
-                            .foregroundStyle(CP.text)
-                        Text(store.serviceDate + " · Berkeley time")
-                            .font(.subheadline)
-                            .foregroundStyle(CP.textSec)
-                    }
-                    selections
+                LazyVStack(alignment: .leading, spacing: CP.sp12) {
+                    ProgressStrip(daily: daily, onTap: onShowToday)
+                    contextRow
                     if simulator {
                         Label("Simulator preview · camera support is unverified", systemImage: "desktopcomputer")
                             .font(.caption).foregroundStyle(.secondary)
@@ -134,7 +128,7 @@ struct MenuScreen: View {
                     #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             })
             .background(CP.bg)
-            .navigationTitle("CalPlate")
+            .navigationTitle(prettyDate(store.serviceDate))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -156,28 +150,98 @@ struct MenuScreen: View {
                 MakeMealSheet(store: store, daily: daily)
             }
             .overlay(alignment: .bottom) {
-                if let name = addedItemName {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(CP.onAccent)
-                        Text("Added \(name)").foregroundStyle(CP.onAccent).font(.subheadline.weight(.medium))
+                if let logged = lastLogged {
+                    UndoSnackbar(text: "Added \(logged.name)") {
+                        daily.deleteLog(id: logged.id)
+                        lastLogged = nil
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(CP.navy, in: Capsule())
-                    .shadow(radius: 8)
-                    .padding(.bottom, 16)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, CP.sp32)
+                    .transition(.opacity)
                 }
             }
-            .animation(.spring(duration: 0.3), value: addedItemName)
-            .onChange(of: addedItemName) { _, name in
-                guard name != nil else { return }
-                Task {
-                    try? await Task.sleep(for: .seconds(2))
-                    addedItemName = nil
-                }
-            }
+            .animation(.easeInOut(duration: 0.2), value: lastLogged?.id)
         }
+    }
+
+    private func logItem(_ item: MenuItem) {
+        guard let macros = item.macros else { return }
+        daily.logDiningItem(name: item.name, macros: macros,
+                            hallTitle: store.selectedHall.title, mealTitle: store.selectedMeal.title)
+        Haptics.logged()
+        if let newest = daily.todayLogs.max(by: { $0.loggedAt < $1.loggedAt }) {
+            lastLogged = (newest.id, item.name)
+            UIAccessibility.post(notification: .announcement, argument: "Added \(item.name)")
+        }
+        snackbarTask?.cancel()
+        snackbarTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled { lastLogged = nil }
+        }
+    }
+
+    private func prettyDate(_ ymd: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = BerkeleyClock.calendar.timeZone
+        guard let d = f.date(from: ymd) else { return ymd }
+        let out = DateFormatter(); out.dateFormat = "EEE, MMM d"; out.timeZone = BerkeleyClock.calendar.timeZone
+        return out.string(from: d)
+    }
+
+    /// One compact line: Crossroads ▾ · Dinner ▾ · 5–9 PM (spec §5.1)
+    private var contextRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: CP.sp8) { hallPicker; Text("·").foregroundStyle(CP.textSecondary); mealPicker; hoursText }
+            VStack(alignment: .leading, spacing: CP.sp4) { hallPicker; mealPicker; hoursText }
+        }
+        .font(.subheadline)
+    }
+
+    private var hallPicker: some View {
+        Menu {
+            Picker("Dining hall", selection: Binding(
+                get: { store.selectedHall },
+                set: { hall in Task { await store.selectHall(hall) } }
+            )) {
+                ForEach(Hall.allCases.filter { $0 != .theDen && $0 != .cubMarket && $0 != .bearMarket }) { hall in
+                    Text(hall.title).tag(hall)
+                }
+            }
+        } label: {
+            pickerLabel(store.selectedHall.title)
+        }
+        .accessibilityLabel("Dining hall, \(store.selectedHall.title)")
+    }
+
+    private var mealPicker: some View {
+        Menu {
+            Picker("Meal", selection: Binding(
+                get: { store.selectedMeal },
+                set: { meal in Task { await store.selectMeal(meal) } }
+            )) {
+                let options: [Meal] = store.availableMeals.isEmpty
+                    ? Meal.allCases
+                    : Meal.allCases.filter { store.availableMeals.contains($0) }
+                ForEach(options) { meal in Text(meal.title).tag(meal) }
+            }
+        } label: {
+            pickerLabel(store.selectedMeal.title)
+        }
+        .accessibilityLabel("Meal, \(store.selectedMeal.title)")
+    }
+
+    @ViewBuilder private var hoursText: some View {
+        if store.mealValidated {
+            Text(store.selectedMeal.typicalHours).foregroundStyle(CP.textSecondary)
+        }
+    }
+
+    private func pickerLabel(_ title: String) -> some View {
+        HStack(spacing: CP.sp4) {
+            Text(title).font(.headline).foregroundStyle(CP.textPrimary)
+            Image(systemName: "chevron.down").font(.footnote.weight(.semibold)).foregroundStyle(CP.accent)
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private var selections: some View {
@@ -258,8 +322,8 @@ struct MenuScreen: View {
         if !store.cacheSaved {
             Text("Menu loaded, but could not be saved for offline use.").font(.caption).foregroundStyle(.orange)
         }
-        Text("Updated \(menu.fetchedAt.formatted(date: .omitted, time: .shortened)) · values per published serving")
-            .font(.caption).foregroundStyle(.secondary)
+        Text("Updated \(menu.fetchedAt.formatted(date: .omitted, time: .shortened)) · per published serving")
+            .font(.footnote).foregroundStyle(CP.textSecondary)
         if menu.status == "not_published" {
             ContentUnavailableView("No published menu", systemImage: "calendar.badge.exclamationmark",
                 description: Text("Berkeley has not listed this meal period for \(store.selectedHall.title). Try another meal."))
@@ -275,12 +339,27 @@ struct MenuScreen: View {
                 .font(.subheadline)
                 .foregroundStyle(CP.navy)
             }
-            Picker("Filter", selection: $macroFilter) {
-                ForEach(MacroFilter.allCases, id: \.self) { f in
-                    Text(f.rawValue).tag(f)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: CP.sp8) {
+                    ForEach(MacroFilter.allCases, id: \.self) { f in
+                        let on = macroFilter == f
+                        Button { macroFilter = f } label: {
+                            HStack(spacing: CP.sp4) {
+                                if on { Image(systemName: "checkmark").font(.footnote.weight(.bold)) }
+                                Text(f.rawValue).font(.subheadline.weight(.medium))
+                            }
+                            .foregroundStyle(on ? CP.onAccent : CP.textPrimary)
+                            .padding(.horizontal, CP.sp16)
+                            .frame(minHeight: 44)
+                            .background(on ? CP.accent : CP.surface2, in: Capsule())
+                            .overlay(Capsule().stroke(on ? Color.clear : CP.outline, lineWidth: 1))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                    }
                 }
             }
-            .pickerStyle(.segmented)
 
             Picker("View", selection: $byStation) {
                 Text("Top by station").tag(true)
@@ -288,7 +367,7 @@ struct MenuScreen: View {
             }
             .pickerStyle(.segmented)
 
-            Text("\(items.count) menu items").font(.headline)
+            Text("\(items.count) items").font(.headline).foregroundStyle(CP.textPrimary)
             if items.isEmpty && !search.isEmpty {
                 ContentUnavailableView.search(text: search)
             } else if items.isEmpty {
@@ -313,15 +392,7 @@ struct MenuScreen: View {
                             }
                         }
                         ForEach(expanded ? station.items : station.top) { item in
-                            MenuItemCard(item: item, hall: store.selectedHall) {
-                                guard let macros = item.macros else { return }
-                                daily.logDiningItem(
-                                    name: item.name, macros: macros,
-                                    hallTitle: store.selectedHall.title,
-                                    mealTitle: store.selectedMeal.title
-                                )
-                                addedItemName = item.name
-                            }
+                            MenuItemCard(item: item, hall: store.selectedHall) { logItem(item) }
                         }
                     }
                     .padding(.top, CP.sp8)
@@ -329,15 +400,7 @@ struct MenuScreen: View {
             }
             if !items.isEmpty && !byStation {
                 ForEach(items) { item in
-                    MenuItemCard(item: item, hall: store.selectedHall) {
-                        guard let macros = item.macros else { return }
-                        daily.logDiningItem(
-                            name: item.name, macros: macros,
-                            hallTitle: store.selectedHall.title,
-                            mealTitle: store.selectedMeal.title
-                        )
-                        addedItemName = item.name
-                    }
+                    MenuItemCard(item: item, hall: store.selectedHall) { logItem(item) }
                 }
             }
             Text("A listed serving is a reference amount, not a measurement of your plate. Nutrition values are estimates.")
@@ -369,76 +432,107 @@ struct MenuItemCard: View {
     let item: MenuItem
     let hall: Hall
     var onLog: (() -> Void)? = nil
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        let content = cardContent
-        if let onLog, item.macros != nil {
-            Button(action: onLog) { content }
-                .buttonStyle(CPRowStyle())
-        } else {
-            content
-        }
-    }
-
-    private var cardContent: some View {
-        VStack(alignment: .leading, spacing: CP.sp12) {
-            // Food name — dominant
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .top) {
-                    Text(item.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(CP.text)
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                    if onLog != nil, item.macros != nil {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.body)
-                            .foregroundStyle(CP.navy.opacity(0.5))
+        HStack(alignment: .top, spacing: CP.sp12) {
+            VStack(alignment: .leading, spacing: CP.sp4) {
+                Text(item.name)
+                    .font(.headline)
+                    .foregroundStyle(CP.textPrimary)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                    .multilineTextAlignment(.leading)
+                if !item.dietaryTags.isEmpty {
+                    tagRow
+                }
+                if let macros = item.macros {
+                    macroLine(macros)
+                    Text(servingText)
+                        .font(.footnote)
+                        .foregroundStyle(CP.textSecondary)
+                    if let original = rescaledFromOz {
+                        Label("Berkeley listed \(original) oz per serving, which isn't realistic. Adjusted to 4 oz.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(CP.textPrimary)
+                    } else if possibleDataError(macros: macros, hall: hall) {
+                        Label("Values may be scaled up. Berkeley sometimes publishes incorrect serving sizes.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(CP.textPrimary)
                     }
-                }
-                let cats = item.categories.filter { !$0.isEmpty }.joined(separator: " · ")
-                if !cats.isEmpty {
-                    Text(cats)
-                        .font(.caption2)
-                        .foregroundStyle(CP.textSec)
+                } else {
+                    Text("Nutrition not available")
+                        .font(.footnote)
+                        .foregroundStyle(CP.textSecondary)
                 }
             }
-
-            if let macros = item.macros {
-                HStack(alignment: .center) {
-                    Text("\(Int(macros.caloriesKcal)) kcal")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(CP.navy)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    MacroChip(value: macros.proteinG, label: "P", color: CP.protein)
-                    MacroChip(value: macros.carbsG,   label: "C", color: CP.carbs)
-                    MacroChip(value: macros.fatG,     label: "F", color: CP.fat)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(item.name)
+            .accessibilityValue(accessibilitySummary)
+            Spacer(minLength: 0)
+            if let onLog, let macros = item.macros {
+                Button(action: onLog) {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(CP.onAccent)
+                        .frame(width: 30, height: 30)
+                        .background(CP.accent, in: Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
-                Text("Per \(item.serving.label)")
-                    .font(.caption2)
-                    .foregroundStyle(CP.textSec)
-                if let original = rescaledFromOz {
-                    Label("Berkeley listed \(original) oz per serving, which isn't realistic. Adjusted to 4 oz.", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                } else if possibleDataError(macros: macros, hall: hall) {
-                    Label("Values may be scaled up — Berkeley sometimes publishes incorrect serving sizes.", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            } else {
-                Text("Nutrition not available")
-                    .font(.caption)
-                    .foregroundStyle(CP.textSec)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add \(item.name), \(Fmt.int(macros.caloriesKcal)) calories")
             }
         }
-        .padding(CP.sp16)
-        .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r12))
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 1)
-        .accessibilityLabel(item.name)
-        .accessibilityValue(accessibilitySummary)
+        .padding(.vertical, CP.sp12)
+        .padding(.horizontal, CP.sp16)
+        .background(CP.surface1, in: RoundedRectangle(cornerRadius: CP.r16))
     }
+
+    private var tagRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: CP.sp4) { tags }
+            VStack(alignment: .leading, spacing: CP.sp4) { tags }
+        }
+    }
+
+    @ViewBuilder private var tags: some View {
+        ForEach(item.dietaryTags, id: \.self) { tag in
+            Text(tag)
+                .font(.caption)
+                .foregroundStyle(CP.textPrimary)
+                .padding(.horizontal, CP.sp8)
+                .padding(.vertical, 2)
+                .background(CP.surface2, in: Capsule())
+        }
+    }
+
+    private func macroLine(_ m: Macros) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: CP.sp4))
+            : AnyLayout(HStackLayout(spacing: CP.sp8))
+        return layout {
+            Text("\(Fmt.int(m.caloriesKcal)) kcal")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(CP.textPrimary)
+            HStack(spacing: CP.sp8) {
+                macro("P", m.proteinG, CP.macroProtein)
+                Text("·").foregroundStyle(CP.textSecondary)
+                macro("C", m.carbsG, CP.macroCarbs)
+                Text("·").foregroundStyle(CP.textSecondary)
+                macro("F", m.fatG, CP.macroFat)
+            }
+            .font(.subheadline)
+        }
+        .monospacedDigit()
+    }
+
+    private func macro(_ letter: String, _ grams: Double, _ color: Color) -> some View {
+        (Text(letter).foregroundColor(color).bold() + Text(" \(Fmt.int(grams))g").foregroundColor(CP.textPrimary))
+    }
+
+    private var servingText: String { item.serving.label }
 
     /// Set by the server when it shrank an unrealistic published serving (warning "serving_rescaled_from_<N>oz").
     private var rescaledFromOz: String? {

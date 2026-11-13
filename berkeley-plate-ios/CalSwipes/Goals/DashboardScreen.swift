@@ -13,19 +13,28 @@ struct DashboardScreen: View {
     @State private var showMakeMeal = false
     @State private var showTrayCamera = false
     @State private var showTrayChat = false
+    @State private var pendingDelete: LoggedMeal?
     @Environment(AssistantRouter.self) private var assistant: AssistantRouter?
     @Environment(SubscriptionStore.self) private var subscription: SubscriptionStore?
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: CP.sp20) {
+                VStack(alignment: .leading, spacing: CP.sp16) {
                     dateHeader
-                    WeeklyBar(daily: daily)
                     progressSection
                     makeMealSection
-                    scanSection
-                    if !daily.todayLogs.isEmpty { mealsSection }
+                    statusLine
+                    if daily.todayLogs.isEmpty {
+                        Text("Nothing logged yet. Tap + to log your first meal.")
+                            .font(.body)
+                            .foregroundStyle(CP.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(CP.sp16)
+                            .background(CP.surface1, in: RoundedRectangle(cornerRadius: CP.r16))
+                    } else {
+                        mealsSection
+                    }
                 }
                 .padding(CP.sp20)
             }
@@ -57,6 +66,17 @@ struct DashboardScreen: View {
         .sheet(isPresented: $showManualEntry) {
             ManualMealEntryScreen(store: daily)
         }
+        .confirmationDialog("Remove this meal?", isPresented: Binding(
+            get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Remove meal", role: .destructive) {
+                if let m = pendingDelete { withAnimation { daily.deleteLog(id: m.id) } }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text(pendingDelete.map { "\(Fmt.int($0.macros.caloriesKcal)) kcal will be removed from today." } ?? "")
+        }
         .sheet(item: $editingMeal) { meal in
             EditMealSheet(meal: meal) { name, macros in
                 daily.updateLog(id: meal.id, name: name, macros: macros)
@@ -85,21 +105,29 @@ struct DashboardScreen: View {
     // MARK: - Date header
 
     private var dateHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(daily.todayDate.uppercased())
-                    .font(.caption2.weight(.semibold))
-                    .tracking(1.1)
-                    .foregroundStyle(CP.textSec)
-                Text(greetingText)
-                    .font(.system(.title2, design: .serif, weight: .semibold))
-                    .foregroundStyle(CP.text)
+        VStack(alignment: .leading, spacing: CP.sp4) {
+            HStack {
+                Text(prettyToday)
+                    .font(.subheadline)
+                    .foregroundStyle(CP.textSecondary)
+                Spacer()
+                if daily.currentStreak > 0 {
+                    Text("🔥 \(daily.currentStreak)-day streak")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(CP.textPrimary)
+                        .accessibilityLabel("\(daily.currentStreak) day logging streak")
+                }
             }
-            Spacer()
-            if daily.currentStreak > 0 {
-                StreakBadge(streak: daily.currentStreak)
-            }
+            Text(greetingText)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(CP.textPrimary)
+                .accessibilityAddTraits(.isHeader)
         }
+    }
+
+    private var prettyToday: String {
+        let f = DateFormatter(); f.dateFormat = "EEE, MMM d"; f.timeZone = BerkeleyClock.calendar.timeZone
+        return f.string(from: Date())
     }
 
     private var greetingText: String {
@@ -119,20 +147,15 @@ struct DashboardScreen: View {
     @ViewBuilder
     private var progressSection: some View {
         if let goal = daily.goal {
-            GoalProgressCard(
-                calories: daily.todayCalories,
-                targetCalories: goal.targetCalories,
-                protein: daily.todayProtein,
-                targetProtein: goal.targetProteinG,
-                carbs: daily.todayCarbs,
-                targetCarbs: goal.targetCarbsG,
-                fat: daily.todayFat,
-                targetFat: goal.targetFatG,
-                onTapRing: { showHistory = true }
-            )
+            TodayHeroCard(daily: daily, goal: goal, onHistory: { showHistory = true })
         } else {
-            SimpleCalorieCard(calories: daily.todayCalories, onSetGoal: { showGoalSheet = true },
-                              onTapHistory: { showHistory = true })
+            VStack(alignment: .leading, spacing: CP.sp16) {
+                SimpleCalorieCard(calories: daily.todayCalories, onSetGoal: { showGoalSheet = true },
+                                  onTapHistory: { showHistory = true })
+                WeekCircles(daily: daily)
+                    .padding(CP.sp16)
+                    .background(CP.surface1, in: RoundedRectangle(cornerRadius: CP.r16))
+            }
         }
     }
 
@@ -157,7 +180,7 @@ struct DashboardScreen: View {
                     LoggedMealRow(
                         meal: meal,
                         onEdit: { editingMeal = meal },
-                        onDelete: { withAnimation { daily.deleteLog(id: meal.id) } }
+                        onDelete: { pendingDelete = meal }
                     )
                 }
             }
@@ -165,6 +188,26 @@ struct DashboardScreen: View {
     }
 
     // MARK: - Log actions
+
+    @ViewBuilder
+    private var statusLine: some View {
+        if store.isLoading {
+            Label("Loading your menu…", systemImage: "arrow.triangle.2.circlepath")
+                .font(.subheadline).foregroundStyle(CP.textSecondary)
+        } else if store.menu == nil {
+            Label("Finding your nearest dining hall…", systemImage: "location")
+                .font(.subheadline).foregroundStyle(CP.textSecondary)
+        } else if !(store.menu?.isFresh() ?? false) {
+            HStack {
+                Label("Menu expired.", systemImage: "clock.badge.exclamationmark")
+                    .font(.subheadline).foregroundStyle(CP.textPrimary)
+                Spacer()
+                Button("Refresh") { Task { await store.loadMenu() } }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44)
+            }
+        }
+    }
 
     private var scanSection: some View {
         VStack(spacing: CP.sp8) {
@@ -548,36 +591,42 @@ private struct LoggedMealRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: CP.sp12) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: CP.sp8) {
+            VStack(alignment: .leading, spacing: CP.sp4) {
                 Text("\(meal.hallTitle) · \(meal.mealTitle)")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(CP.text)
+                    .font(.headline)
+                    .foregroundStyle(CP.textPrimary)
                 Text(meal.itemNames.prefix(3).joined(separator: ", "))
-                    .font(.caption).foregroundStyle(CP.textSec).lineLimit(1)
-                Text(meal.macros.caloriesKcal.formatted(.number.precision(.fractionLength(0))) + " kcal")
-                    .font(.caption.weight(.semibold)).foregroundStyle(CP.navy)
+                    .font(.subheadline).foregroundStyle(CP.textSecondary).lineLimit(2)
+                Text("\(Fmt.int(meal.macros.caloriesKcal)) kcal")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(CP.textPrimary)
+                    .monospacedDigit()
             }
-            Spacer()
-            HStack(spacing: CP.sp12) {
-                Button(action: onEdit) {
-                    Image(systemName: "pencil.circle.fill")
-                        .foregroundStyle(CP.textSec).font(.title3)
-                }
-                .buttonStyle(CPPressStyle())
-                .accessibilityLabel("Edit meal")
-
-                Button(action: onDelete) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(CP.textSec).font(.title3)
-                }
-                .buttonStyle(CPPressStyle())
-                .accessibilityLabel("Remove meal")
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 0)
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(CP.accent)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit meal")
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(CP.destructive)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove meal")
         }
-        .padding(CP.sp14)
-        .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r12))
-        .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 1)
+        .padding(.vertical, CP.sp8)
+        .padding(.leading, CP.sp16)
+        .padding(.trailing, CP.sp4)
+        .background(CP.surface1, in: RoundedRectangle(cornerRadius: CP.r16))
     }
 }
 
