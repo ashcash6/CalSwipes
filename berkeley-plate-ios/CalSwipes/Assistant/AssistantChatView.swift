@@ -104,22 +104,50 @@ struct AssistantChatView: View {
         .disabled(router.isThinking)
     }
 
+    private var inputPlaceholder: String {
+        if router.isThinking { return "Getting your answer…" }
+        if router.cloudRemaining == 0 { return "Out of AI answers today. Try the buttons above" }
+        return "Ask anything about dining…"
+    }
+
+    @ViewBuilder
+    private var quotaLine: some View {
+        if let left = router.cloudRemaining {
+            Label(left == 0 ? "No AI answers left today · the quick buttons above are free"
+                            : "\(left) AI answer\(left == 1 ? "" : "s") left today · quick buttons are free",
+                  systemImage: left == 0 ? "exclamationmark.circle" : "sparkles")
+                .font(.caption)
+                .foregroundStyle(left == 0 ? Color.orange : CP.textSec)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, CP.sp16)
+        }
+    }
+
     private var inputBar: some View {
+        VStack(spacing: 6) {
+        quotaLine
         HStack(spacing: CP.sp8) {
-            TextField("Ask anything about dining…", text: $draft, axis: .vertical)
+            TextField(inputPlaceholder, text: $draft, axis: .vertical)
                 .lineLimit(1...4)
                 .focused($focused)
                 .padding(.horizontal, CP.sp12).padding(.vertical, CP.sp10)
                 .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r20))
                 .submitLabel(.send)
                 .onSubmit(submit)
-            Button(action: submit) {
-                Image(systemName: "arrow.up.circle.fill").font(.title)
+                .disabled(router.isThinking)
+                .opacity(router.isThinking ? 0.6 : 1)
+            if router.isThinking {
+                ProgressView().frame(width: 34, height: 34)
+            } else {
+                Button(action: submit) {
+                    Image(systemName: "arrow.up.circle.fill").font(.title)
+                }
+                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                .tint(CP.navy)
             }
-            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || router.isThinking)
-            .tint(CP.navy)
         }
         .padding(.horizontal, CP.sp16)
+        }
         .padding(.vertical, CP.sp10)
         .background(.regularMaterial)
     }

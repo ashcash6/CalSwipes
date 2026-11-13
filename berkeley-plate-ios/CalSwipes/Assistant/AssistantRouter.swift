@@ -20,6 +20,9 @@ final class AssistantRouter {
     private(set) var messages: [ChatMessage] = []
     private(set) var isThinking = false
     private(set) var thinkingLabel = "Thinking…"
+    /// Cloud answers left today (from the server), nil until the first cloud call.
+    private(set) var cloudRemaining: Int?
+    private(set) var cloudLimit: Int?
     /// Set when the server says the user hit their daily cap; the chat view shows the CalSwipes+ paywall.
     var showPaywall = false
     var context: AssistantContext = .none
@@ -128,6 +131,7 @@ final class AssistantRouter {
             let text = r.matches.isEmpty
                 ? "I couldn't match anything on the tray to today's \(meal.title.lowercased()) menu at \(hall.title)."
                 : "Here's what I see. Confirm the items and set servings before logging:"
+            track(r.quota)
             messages.append(ChatMessage(role: .assistant, text: text + quotaNote(r.quota), tier: .cloud, scanMatches: r.matches))
         } catch {
             handle(error)
@@ -145,6 +149,7 @@ final class AssistantRouter {
     private func askCloud(_ text: String) async {
         do {
             let r = try await cloud.ask(text, context: context, entitlement: entitlementHeaders)
+            track(r.quota)
             messages.append(ChatMessage(role: .assistant, text: r.answer + quotaNote(r.quota), tier: .cloud,
                                         citations: r.citations ?? []))
         } catch {
@@ -163,8 +168,18 @@ final class AssistantRouter {
         return q.remaining == 0 ? "\n\n(That was your last cloud answer for today.)" : "\n\n(1 cloud answer left today.)"
     }
 
+    private func track(_ quota: CloudAssistantClient.Quota?) {
+        guard let quota else { return }
+        cloudRemaining = quota.remaining
+        cloudLimit = quota.limit
+    }
+
     private func handle(_ error: Error) {
-        let message = (error as? LocalizedError)?.errorDescription ?? "Couldn't reach the assistant. Check your connection."
+        var message = (error as? LocalizedError)?.errorDescription ?? "Couldn't reach the assistant. Check your connection."
+        if case CloudAssistantError.quotaExceeded = error {
+            cloudRemaining = 0
+            message = "You've used all your AI answers for today. The quick buttons above the text box still work, free and unlimited. AI answers reset tomorrow."
+        }
         messages.append(ChatMessage(role: .system, text: message))
         if case CloudAssistantError.quotaExceeded(_, let tier) = error, tier == "free", !subscription.isPremium {
             showPaywall = true
