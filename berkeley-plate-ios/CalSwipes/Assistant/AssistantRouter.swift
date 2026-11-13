@@ -25,6 +25,25 @@ final class AssistantRouter {
     private(set) var cloudLimit: Int?
     /// Set when the server says the user hit their daily cap; the chat view shows the CalSwipes+ paywall.
     var showPaywall = false
+    /// Apple guideline 5.1.2(i): ask before sending questions/photos to a third-party AI (Google Gemini).
+    var showConsent = false
+    private var pendingCloud: (() async -> Void)?
+    private static let consentKey = "cloudAIConsent.v1"
+    var hasCloudConsent: Bool { UserDefaults.standard.bool(forKey: Self.consentKey) }
+
+    func grantConsent() {
+        UserDefaults.standard.set(true, forKey: Self.consentKey)
+        showConsent = false
+        let work = pendingCloud
+        pendingCloud = nil
+        if let work { Task { await work() } }
+    }
+
+    func declineConsent() {
+        showConsent = false
+        pendingCloud = nil
+        messages.append(ChatMessage(role: .system, text: "No problem. The quick buttons above still work without sending anything to AI."))
+    }
     var context: AssistantContext = .none
 
     private let store: AppStore
@@ -121,6 +140,11 @@ final class AssistantRouter {
     }
 
     func scan(jpeg: Data) async {
+        guard hasCloudConsent else {
+            pendingCloud = { [weak self] in await self?.scan(jpeg: jpeg) }
+            showConsent = true
+            return
+        }
         let hall = context.hall ?? store.selectedHall
         let meal = context.meal ?? store.selectedMeal
         messages.append(ChatMessage(role: .user, text: "📷 Tray photo (\(hall.title), \(meal.title))"))
@@ -147,6 +171,17 @@ final class AssistantRouter {
     }
 
     private func askCloud(_ text: String) async {
+        guard hasCloudConsent else {
+            pendingCloud = { [weak self] in
+                guard let self else { return }
+                self.thinkingLabel = "Checking today's menus…"
+                self.isThinking = true
+                defer { self.isThinking = false }
+                await self.askCloud(text)
+            }
+            showConsent = true
+            return
+        }
         do {
             let r = try await cloud.ask(text, context: context, entitlement: entitlementHeaders)
             track(r.quota)

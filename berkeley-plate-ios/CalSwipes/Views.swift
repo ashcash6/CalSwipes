@@ -22,7 +22,7 @@ struct MenuScreen: View {
     let simulator: Bool
     @State private var aboutPresented = false
     @State private var search = ""
-    @State private var mealSuggestionRequest: MealSuggestionRequest?
+    @State private var showMakeMeal = false
     @State private var macroFilter: MacroFilter = .all
     @State private var addedItemName: String? = nil
 
@@ -150,8 +150,8 @@ struct MenuScreen: View {
                 await store.loadMenu()
             }
             .sheet(isPresented: $aboutPresented) { AboutView() }
-            .sheet(item: $mealSuggestionRequest) { req in
-                MealSuggestionSheet(combos: req.combos, hallTitle: req.hallTitle, mealTitle: req.mealTitle)
+            .sheet(isPresented: $showMakeMeal) {
+                MakeMealSheet(store: store, daily: daily)
             }
             .overlay(alignment: .bottom) {
                 if let name = addedItemName {
@@ -263,21 +263,7 @@ struct MenuScreen: View {
                 description: Text("Berkeley has not listed this meal period for \(store.selectedHall.title). Try another meal."))
         } else {
             Button {
-                let liveMenu = store.menu ?? menu
-                let budget = mealBudget()
-                let combos = LocalRecommender.recommend(
-                    from: liveMenu.items,
-                    meal: store.selectedMeal,
-                    goal: daily.goal,
-                    budget: budget,
-                    excluding: [],
-                    fixedPortions: !store.selectedHall.isDiningHall
-                )
-                mealSuggestionRequest = MealSuggestionRequest(
-                    combos: combos,
-                    hallTitle: store.selectedHall.title,
-                    mealTitle: store.selectedMeal.title
-                )
+                showMakeMeal = true
             } label: {
                 Label("Suggest a meal", systemImage: "sparkles")
                     .frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -440,171 +426,6 @@ private struct MacroChip: View {
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(CP.textSec)
         }
-    }
-}
-
-// MARK: - Meal Suggestion Sheet
-
-struct MealSuggestionRequest: Identifiable {
-    let id = UUID()
-    let combos: [MealCombo]
-    let hallTitle: String
-    let mealTitle: String
-}
-
-struct MealSuggestionSheet: View {
-    let combos: [MealCombo]
-    let hallTitle: String
-    let mealTitle: String
-    @Environment(\.dismiss) private var dismiss
-
-    private func topItems(for role: FoodRole) -> [MealComponent] {
-        var seenIds = Set<String>()
-        return combos
-            .flatMap { $0.components }
-            .filter { $0.role == role && seenIds.insert($0.itemId).inserted }
-            .sorted { $0.itemScore > $1.itemScore }
-            .prefix(3)
-            .map { $0 }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: CP.sp16) {
-                    if combos.isEmpty {
-                        VStack(spacing: CP.sp16) {
-                            Image(systemName: "fork.knife.circle")
-                                .font(.system(size: 44))
-                                .foregroundStyle(CP.navy.opacity(0.4))
-                            Text("No suggestions available")
-                                .font(.subheadline.weight(.medium))
-                            Text("The menu for this meal may not have enough nutrition data to generate suggestions.")
-                                .font(.caption)
-                                .foregroundStyle(CP.textSec)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.top, 60)
-                        .padding(.horizontal, CP.sp32)
-                    } else {
-                        VStack(alignment: .leading, spacing: CP.sp4) {
-                            CPSectionLabel(text: "Based on your remaining budget today")
-                            Text("Pick one from each section to build a balanced plate.")
-                                .font(.subheadline)
-                                .foregroundStyle(CP.textSec)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if let topCombo = combos.first {
-                            macroDiagramCard(macros: topCombo.totalMacros)
-                        }
-
-                        let proteinItems = topItems(for: .protein)
-                        let carbItems    = topItems(for: .carb)
-                        let produceItems = topItems(for: .produce)
-
-                        if !proteinItems.isEmpty {
-                            roleSection(role: .protein, title: "Protein Sources", items: proteinItems)
-                        }
-                        if !carbItems.isEmpty {
-                            roleSection(role: .carb, title: "Carb Sources", items: carbItems)
-                        }
-                        if !produceItems.isEmpty {
-                            roleSection(role: .produce, title: "Produce", items: produceItems)
-                        }
-
-                        Text("These are suggestions based on your calorie goal. Use Scan in the Today tab to log what you actually eat.")
-                            .font(.caption)
-                            .foregroundStyle(CP.textSec)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, CP.sp8)
-                    }
-                }
-                .padding(CP.sp20)
-            }
-            .background(CP.bg)
-            .navigationTitle("\(mealTitle) at \(hallTitle)")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.fontWeight(.medium)
-                }
-            }
-        }
-    }
-
-    private func macroDiagramCard(macros: PlanMacros) -> some View {
-        VStack(alignment: .leading, spacing: CP.sp10) {
-            CPSectionLabel(text: "Top suggestion")
-            MacroDiagramBar(macros: macros)
-            HStack(spacing: CP.sp16) {
-                suggestionLegendChip("Protein", color: CP.protein, value: macros.proteinG)
-                suggestionLegendChip("Carbs",   color: CP.carbs,   value: macros.carbsG)
-                suggestionLegendChip("Fat",     color: CP.fat,     value: macros.fatG)
-                Spacer()
-                Text("\(Int(macros.caloriesKcal)) kcal")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(CP.navy)
-            }
-        }
-        .cpCard(CP.sp16)
-    }
-
-    private func suggestionLegendChip(_ label: String, color: Color, value: Double) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text("\(Int(value))g \(label)")
-                .font(.caption2).foregroundStyle(CP.textSec)
-        }
-    }
-
-    private func roleSection(role: FoodRole, title: String, items: [MealComponent]) -> some View {
-        let ordinals = ["1st", "2nd", "3rd"]
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: CP.sp8) {
-                Image(systemName: role.systemImage)
-                    .font(.caption)
-                    .foregroundStyle(CP.roleColor(role))
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CP.textSec)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
-            }
-            .padding(.horizontal, CP.sp16)
-            .padding(.top, CP.sp14)
-            .padding(.bottom, CP.sp10)
-
-            Divider().padding(.horizontal, CP.sp16)
-
-            ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                HStack(spacing: CP.sp10) {
-                    Text(i < ordinals.count ? ordinals[i] : "#\(i + 1)")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(CP.navy)
-                        .frame(width: 26, alignment: .center)
-                        .padding(.vertical, 4)
-                        .background(CP.navy.opacity(0.08), in: Capsule())
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.itemName)
-                            .font(.subheadline)
-                            .lineLimit(2)
-                        if let macros = item.macros {
-                            Text("\(Int(macros.caloriesKcal)) kcal · \(Int(macros.proteinG))g pro · \(Int(macros.carbsG))g carbs")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, CP.sp16)
-                .padding(.vertical, CP.sp10)
-                if i < items.count - 1 {
-                    Divider().padding(.leading, CP.sp16 + 26 + CP.sp10)
-                }
-            }
-        }
-        .background(CP.surface, in: RoundedRectangle(cornerRadius: CP.r16))
-        .shadow(color: .black.opacity(CP.shadowOpacity), radius: CP.shadowRadius, x: 0, y: CP.shadowY)
     }
 }
 

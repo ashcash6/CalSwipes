@@ -61,6 +61,12 @@ struct AssistantChatView: View {
                     photoItem = nil
                 }
             }
+            .alert("Use CalSwipes AI?", isPresented: $router.showConsent) {
+                Button("Allow") { router.grantConsent() }
+                Button("Not now", role: .cancel) { router.declineConsent() }
+            } message: {
+                Text("To answer this, your question (or tray photo) and the dining hall and meal you picked are sent to Google's Gemini AI through CalSwipes' server. Nothing else about you is shared. You can keep using the quick buttons without AI.")
+            }
             .sheet(isPresented: $router.showPaywall) {
                 CalSwipesPlusPaywall(subscription: subscription)
             }

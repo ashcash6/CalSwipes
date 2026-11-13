@@ -563,7 +563,7 @@ private struct LoggedMealRow: View {
 
 // MARK: - Make My Meal Sheet
 
-private struct MakeMealSheet: View {
+struct MakeMealSheet: View {
     var store: AppStore
     var daily: DailyStore
 
