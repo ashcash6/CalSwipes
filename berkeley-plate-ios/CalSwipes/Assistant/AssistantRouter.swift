@@ -13,6 +13,7 @@ private let routerLog = Logger(subsystem: "CalSwipes", category: "AssistantRoute
 @Observable @MainActor
 final class AssistantRouter {
     enum Route: Equatable {
+        case smallTalk
         case local(QuickAction)
         case onDevice
         case cloud(reason: String)
@@ -84,6 +85,7 @@ final class AssistantRouter {
     nonisolated static func classify(_ text: String, onDeviceAvailable: Bool, defaultHall: Hall,
                                       hasMealContext: Bool = false) -> Route {
         let t = text.lowercased()
+        if isSmallTalk(t) { return .smallTalk }   // never spend cloud AI on "hi"
         let cloudTriggers = ["allerg", "cross-contact", "cross contact", "celiac", "gluten-free", "gluten free",
                              "nut-free", "nut free", "safe for", "safe to eat", "epipen", "policy", "label mean",
                              "why", "explain", "compare", "difference between", "how does calswipes",
@@ -96,6 +98,24 @@ final class AssistantRouter {
         }
         return onDeviceAvailable ? .onDevice : .cloud(reason: "on-device AI unavailable")
     }
+
+    /// Greetings, thanks, "what can you do": answered on the phone, never sent to the cloud.
+    nonisolated static func isSmallTalk(_ t: String) -> Bool {
+        let cleaned = t.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        if cleaned.isEmpty { return true }
+        let phrases: Set<String> = ["hi", "hii", "hey", "heyy", "hello", "yo", "sup", "whats up", "what's up", "hiya",
+            "thanks", "thank you", "thx", "ty", "ok", "okay", "k", "cool", "nice", "great", "lol", "bye", "good",
+            "who are you", "what are you", "what can you do", "help", "how are you", "good morning",
+            "good afternoon", "good evening", "gm", "gn"]
+        if phrases.contains(cleaned) { return true }
+        // Very short messages with no food or hall words are chit-chat too.
+        let words = cleaned.split(separator: " ")
+        let food = ["menu", "eat", "food", "protein", "calor", "vegan", "vegetarian", "lunch", "dinner",
+                    "breakfast", "brunch", "crossroads", "cafe", "foothill", "clark", "meal", "carb", "fat", "macro"]
+        return words.count <= 2 && !food.contains(where: { cleaned.contains($0) })
+    }
+
+    static let smallTalkReply = "Hey! I can tell you what's good at each dining hall, find high-protein or vegan options, build a meal that fits your goals, or log your tray from a photo. Tap a button above or ask me something like \"best protein at Crossroads tonight?\""
 
     // MARK: Sending
 
@@ -123,6 +143,8 @@ final class AssistantRouter {
                                   hasMealContext: context.mealSummary != nil)
         routerLog.info("route=\(String(describing: route), privacy: .public)")
         switch route {
+        case .smallTalk:
+            messages.append(ChatMessage(role: .assistant, text: Self.smallTalkReply, tier: .local))
         case .local(let action):
             let snap = await snapshot(focus: action)
             messages.append(ChatMessage(role: .assistant, text: LocalAssistantEngine.answer(action, snap: snap), tier: .local))

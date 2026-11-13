@@ -52,4 +52,12 @@ final class AssistantRouterTests: XCTestCase {
         XCTAssertEqual(proteins, proteins.sorted(by: >))
         XCTAssertTrue(hits.allSatisfy { $0.2.nutritionStatus == "published" })
     }
+
+    func testSmallTalkStaysOnPhone() {
+        for t in ["hi", "Hey!", "thanks", "what can you do?", "ok cool"] {
+            XCTAssertEqual(route(t), .smallTalk, t)
+            XCTAssertEqual(route(t, onDevice: false), .smallTalk, t)
+        }
+        XCTAssertNotEqual(route("vegan lunch?"), .smallTalk)
+    }
 }
