@@ -62,7 +62,7 @@ ROOT = dict(
         "citations), nutrition_agent (meal combos for calorie/protein goals). You may call several. Combine "
         "their answers into one short reply and keep their citation tags. The reply shows on a phone: at most 5 items, "
         "best first, one per line as '- Item: 520 kcal, 32g protein', no headers, no bold, no duplicate items, skip toppings "
-        "and condiments unless asked, then one short line offering more. If the question involves food "
+        "and condiments unless asked, leave out desserts, breads and drinks unless asked, then one short line offering more. If the question involves food "
         f"allergies, always include this caveat: \"{ALLERGEN_CAVEAT}\" Never say an item is guaranteed safe. "
         + COMMON
     ),
@@ -76,7 +76,8 @@ ROOT = dict(
 PHONE_FORMAT = (
     "The reply shows on a phone: at most 5 items, best first, one per line as "
     "'- Item: 520 kcal, 32g protein', no headers, no bold, no duplicate items, skip toppings and "
-    "condiments unless asked, then one short line offering more."
+    "condiments unless asked, then one short line offering more. Lead with real dishes (entrees, mains, "
+    "protein); leave out desserts, breads and drinks unless the user asks for them."
 )
 
 MENU_FAST = dict(
