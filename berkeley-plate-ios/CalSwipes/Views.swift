@@ -127,7 +127,7 @@ struct MenuScreen: View {
                     #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             })
             .background(CP.bg)
-            .navigationTitle(prettyDate(store.serviceDate))
+            .navigationTitle(prettyDate(store.menu?.date ?? store.serviceDate))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -321,15 +321,10 @@ struct MenuScreen: View {
         if !store.cacheSaved {
             Label("Menu loaded, but couldn't be saved for offline use.", systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(CP.textPrimary)
         }
-        Text("Updated \(menu.fetchedAt.formatted(date: .omitted, time: .shortened)) · per published serving")
-            .font(.footnote).foregroundStyle(CP.textSecondary)
         if menu.status == "not_published" {
             ContentUnavailableView("No published menu", systemImage: "calendar.badge.exclamationmark",
                 description: Text("Berkeley has not listed this meal period for \(store.selectedHall.title). Try another meal."))
         } else {
-            CPPrimaryButton(title: "Make My Meal", icon: "sparkles") {
-                showMakeMeal = true
-            }
             if hiddenCount > 0 {
                 Label(
                     "\(hiddenCount) item\(hiddenCount == 1 ? "" : "s") hidden for your dietary restrictions",
